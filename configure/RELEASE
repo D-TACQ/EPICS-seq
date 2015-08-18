@@ -1,8 +1,6 @@
-# RELEASE - Location of external products
+include $(TOP)/../../../configure/MASTER_RELEASE
 
-# You should do a "gnumake clean uninstall install" in the application
-# top directory each time changes are made to this file
-
-EPICS_BASE=/opt/Epics/R3.14.12/base/3-14-12-2-1
+# overrdie module definitions here
+-include $(TOP)/configure/RELEASE.private
 
 include $(TOP)/../../../ISIS_CONFIG.$(EPICS_HOST_ARCH)
