@@ -1,3 +1,9 @@
+.. meta::
+   :keywords: programming language, control system, epics, sequencer,
+      snl, snc, control system, domain specific language, state machine,
+      state notation language, channel access
+   :title: EPICS State Notation Language and Sequencer
+
 State Notation Language and Sequencer
 =====================================
 
@@ -5,12 +11,12 @@ State Notation Language and Sequencer
    :align: right
 
 :Maintainer: Ben Franksen <benjamin.franksen@helmholtz-berlin.de>
+:Co-Maintainer: Freddie Akeroyd <freddie.akeroyd@stfc.ac.uk>
 :Bug Reports: tech-talk@aps.anl.gov
+:Version: |version|
 
-Welcome to the home page of the EPICS Sequencer project.
+Welcome to the home page of the **EPICS Sequencer** project.
 
-This page contains the documentation, including instructions how to
-download, build, and install the software.
 
 .. include:: about.inc
 
@@ -27,7 +33,8 @@ download, build, and install the software.
    Reference
    PV-API
    Examples
-   Notes
+   ReleaseNotes-2-1
+   ReleaseNotes-2-0-and-older
    KnownProblems
    Plans
 

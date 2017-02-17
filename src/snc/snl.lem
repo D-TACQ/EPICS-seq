@@ -15,6 +15,8 @@ in the file LICENSE that is included with this distribution.
 #include "expr.h"
 #include "main.h"
 #include "parser.h"
+
+#define NIL (Expr *)0
 }
 
 %extra_argument { Expr **presult }
@@ -114,16 +116,16 @@ global_defn(p) ::= option(x).			{ p = x; }
 global_defn(p) ::= c_code(x).			{ p = x; }
 
 assign(p) ::= connect variable(v) to string(t) SEMICOLON. {
-	p = expr(D_ASSIGN, v, 0, t);
+	p = expr(D_ASSIGN, v, NIL, t);
 }
 assign(p) ::= connect variable(v) subscript(s) to string(t) SEMICOLON. {
 	p = expr(D_ASSIGN, v, expr(E_CONST, s), t);
 }
 assign(p) ::= connect variable(v) to LBRACE(t) strings(ss) RBRACE SEMICOLON. {
-	p = expr(D_ASSIGN, v, 0, expr(E_INIT, t, ss));
+	p = expr(D_ASSIGN, v, NIL, expr(E_INIT, t, ss));
 }
 assign(p) ::= connect variable(v) SEMICOLON. {
-	p = expr(D_ASSIGN, v, 0, 0);
+	p = expr(D_ASSIGN, v, NIL, NIL);
 }
 
 connect ::= ASSIGN.
@@ -141,7 +143,7 @@ monitor(p) ::= MONITOR variable(v) opt_subscript(s) SEMICOLON. {
 }
 
 sync(p) ::= SYNC variable(v) opt_subscript(s) to event_flag(f) SEMICOLON. {
-	p = expr(D_SYNC, v, s, expr(E_VAR, f), 0);
+	p = expr(D_SYNC, v, s, expr(E_VAR, f), NIL);
 }
 
 syncq(p) ::= SYNCQ variable(v) opt_subscript(s) to event_flag(f) syncq_size(n) SEMICOLON. {
@@ -149,7 +151,7 @@ syncq(p) ::= SYNCQ variable(v) opt_subscript(s) to event_flag(f) syncq_size(n) S
 }
 
 syncq(p) ::= SYNCQ variable(v) opt_subscript(s) syncq_size(n) SEMICOLON. {
-	p = expr(D_SYNCQ, v, s, 0, n);
+	p = expr(D_SYNCQ, v, s, NIL, n);
 }
 
 %type event_flag {Token}
@@ -312,7 +314,7 @@ statement(p) ::= c_code(x).			{ p = x; }
 statement(p) ::= LBRACE(t) block_defns(ds) statements(xs) RBRACE.
 						{ p = expr(S_CMPND, t, ds, xs); }
 statement(p) ::= IF(t) LPAREN comma_expr(c) RPAREN statement(th).
-						{ p = expr(S_IF, t, c, th, 0); }
+						{ p = expr(S_IF, t, c, th, NIL); }
 statement(p) ::= IF(t) LPAREN comma_expr(c) RPAREN statement(th) ELSE statement(el).
 						{ p = expr(S_IF, t, c, th, el); }
 statement(p) ::= WHILE(t) LPAREN comma_expr(c) RPAREN statement(x).
