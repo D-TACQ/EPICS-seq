@@ -1,5 +1,413 @@
-Release Notes
-=============
+Release Notes for Version 2.1
+=============================
+
+.. _Release_Notes_2.1.21:
+
+Release 2.1.21
+--------------
+
+build rules:
+
+* snc: simplify the multi-target lemon rule
+
+  Instead of generating an intermediate file ("parser_created") we now use a
+  pattern rule. This is the more reliable (and recommended) way to make rules
+  with multiple targets work as expected.
+
+* bring build rules on par with version 2.2
+
+  This includes a fix for the PATH_FILTER warnings and proper generation (and
+  include) of .d files.
+
+* RULES_BUILD: make snc build rules atomic
+
+* test only for BASE_3_14==YES and a bit of refactoring
+
+  The assumption here is that stuff that was added for 3.15 will
+  remain in future versions. Thus we should not test for 3.15 yet;
+  instead do this when we add support for 3.16 etc.
+
+The two were requested by Mark Rivers to make integration with synapps easier:
+
+* added include of meta build configuration to configure/RELEASE
+
+* removed configure/RELEASE.win32-x86
+
+seq:
+
+* disabled 'no pending put request' error message in pvGet/PutComplete
+
+  As Janez pointed out, it makes sense to call pvPutComplete for a channel
+  array in which only some of the channels have pending puts. This resulted in
+  lots of annoying messages on the console. Note that calling pvPutComplete
+  with no pending put is completely harmless (it just returns TRUE).
+
+  For symmetry, I have disabled the corresponding message in pvGetComplete,
+  too, even though the latter does not handle channel arrays.
+
+The following three are fixes for the :ref:`Known_Problems_2.1.20`:
+
+* fixed broken array handling in pvPutComplete
+
+  In some places, 'varId' was used instead of 'varId+n' (where n is the array
+  index). Thanks to Janez Golob <janez.golob@cosylab.com> for the bug report
+  and the fix, too.
+
+* fixed bad memory access in pvFlushQ
+
+* must not hold program lock during pvVarDestroy when exiting
+
+  This is essentially the same problem as the recently fixed deadlock in the
+  pvAssign builtin function.
+
+test:
+
+* avoid warning about self-comparison
+
+* fix (a few) clang compiler warnings
+
+* refactor killing background IOCs
+
+
+.. _Release_Notes_2.1.20:
+
+Release 2.1.20
+--------------
+
+Thanks to the new co-maintainer Freddie Akeroyd <freddie.akeroyd@stfc.ac.uk>
+this release fixes building and running the tests for Windows7 in 32 and 64
+bit, both with cygwin and native compiler. Please note that parallel building
+may not work on Windows yet.
+
+snc:
+
+* cast 0 to Node* in varargs call to node constructor
+
+* added a missing include to types.h
+
+seq:
+
+* Initialise timeNow
+
+  Required for running tests with windows debug build
+
+test:
+
+* Set PATH for running tests in shared build
+
+  The path to seq.dll needs to be set in cygwin and Windows for running
+  tests when built with SHARED_LIBRARIES=YES
+
+* Fix running tests on Windows
+
+  The \*Ioc.t tests were hanging on windows when run from Make - they
+  worked when ran individually from the command line, but were not then
+  killing the background IOC process on test completion. Using the
+  Win32::Process package rather than fork() to create subprocesses fixes
+  both issues
+
+* set environment variables in a more portable way
+
+* silence warnings about different TOP dirs
+
+* ensure that tests cover seq exit phase
+
+* Reorder test linking for cygwin
+
+  Move subThreadSleep.c to separate library to enable correct import/export
+  declarations for linking on cygwin
+
+* set HARNESS_ACTIVE env var in queueTest.plt
+
+* use a per host "unique" CA server port
+
+  The idea here is to isolate concurrent test runs on the same machine against
+  each other. The port is set to 10000 + pid % 30000, which is not unique in a
+  strict sense, but the probability of a collision is quite small and the
+  solution is non-intrusive and very simple to implement.
+
+
+.. _Release_Notes_2.1.19:
+
+Release 2.1.19
+--------------
+
+Bug fixes:
+
+* fixed two MS C compiler warnings
+
+* must not assume valid dbch in CA callbacks
+
+  As a consequence of unlocking around pvVarDestroy inside seq_pvAssign,
+  callbacks may be called with dbch being NULL, leading to assertion failures.
+  This patch removes the assertion and instead returns in this case.
+
+* fixed a bug in the Tutorial
+
+  Thanks to Silver <marco_hair@163.com> for reporting the error.
+
+Some improvements to the web pages have been made: the version the pages
+refer to is more prominently visible, some shortcuts have been renamed, and
+side-bar shortcuts to all other (maintained) versions were added.
+
+I added git mirrors of the darcs repos, the URLs are:
+
+http://www-csr.bessy.de/control/SoftDist/sequencer/repo/branch-2-1.git
+http://www-csr.bessy.de/control/SoftDist/sequencer/repo/branch-2-2.git
+http://www-csr.bessy.de/control/SoftDist/sequencer/repo/branch-2-3.git
+
+.. _Release_Notes_2.1.18:
+
+Release 2.1.18
+--------------
+
+* seq: fix possible deadlock when using pvAssign with base >= 3.14.12.4
+
+  From EPICS base 3.14.12.3 to 3.14.12.4 there was a change (a bug fix) in the
+  ca_clear_channel implementation with the effect that it waits for any
+  already active callback to complete. This could cause a deadlock between CA
+  callbacks and a state set thread calling pvAssign because both need to take
+  the program instance mutex lock. The solution is to release the lock before
+  pvVarDestroy is called (which in turn calls ca_clear_channel) and to re-take
+  it afterwards.
+
+  Thanks to Michael Davidsaver <mdavidsaver@bnl.gov> for finding the cause
+  of this problem.
+
+* seq: move variable timeNow out of the loop
+
+  This fixes a bug in the code that waits for initial channels to connect.
+  Thanks to Janez Golob <janez.golob@cosylab.com> for discovering this and for
+  providing a fix (and convincing me that this is actually a bug).
+
+* seq: added public seqStats.h which exports seqGatherStats
+
+  This change is based on a proposal by Murali Shankar
+  <mshankar@slac.stanford.edu>, Richard Neill Dabney
+  <rdabney@slac.stanford.edu>, and Michael Stanley Zelazny
+  <zelazny@slac.stanford.edu> to add device support for monitoring the
+  sequencer statistics. It exposes previously private functionality that was
+  used by the seqcar shell command and adds no new functionality.
+
+* various fixes and improvements to the documentation
+
+.. _Release_Notes_2.1.17:
+
+Release 2.1.17
+--------------
+
+* In the tests an internal variable from the runtime system is declared
+  which is (intentionally) not exported through a header file. The
+  declarations now use ``epicsShareExtern`` instead of ``extern``. This
+  should fix the problems when building the tests on Windows.
+
+* Some patches from the lemon parser generator upstream repo have been
+  applied. Among them is the fix for the lemon crash on Windows 8.1 x64 with
+  Visual Studio 2013, proposed by Freddie Akeroyd
+  <freddie.akeroyd@stfc.ac.uk>.
+
+* To avoid stack overflows when monitoring large arrays on systems with a
+  fixed stack size, you can now tell the sequencer to use malloc/free for
+  temporary copies of CA messages (instead of stack allocated memory) by
+  adding the line ::
+
+    USE_MALLOC_FOR_TEMPORARY_COPY=YES
+
+  to configure/CONFIG_SITE before building. Note that this may cause
+  unwanted side-effects (like memory fragmentation on older versions of
+  VxWorks). It would be better to avoid the extra copy, which is how things
+  are done in version 2.2.
+
+* Pulled a test from the 2.2 branch that demonstrates how to use CPP to get
+  conditional compilation for SNL programs depending on the sequencer
+  release. See test/validate/version.st.
+
+* Fixed a potential memory leak in the (sync-)queue destructor.
+
+.. _Release_Notes_2.1.16:
+
+Release 2.1.16
+--------------
+
+This release fixes a build problem on Windows, see :ref:`Known_Problems_2.1.15`.
+
+.. _Release_Notes_2.1.15:
+
+Release 2.1.15
+--------------
+
+This release fixes the two problems decribed in :ref:`Known_Problems_2.1.14`.
+
+.. _Release_Notes_2.1.14:
+
+Release 2.1.14
+--------------
+
+One (major) bug in the sequencer runtime was fixed and two minor build problems.
+See :ref:`Known_Problems_2.1.13` for a description of these problems.
+
+Some more details:
+
+* fixed a bug in pvGet/PutComplete
+  
+  Must not epicsEventSignal when epicsEventTryWait returns
+  epicsEventWaitTimeout, since this means we have not yet been called
+  back by CA. This bug could lead to pvGet/PutComplete erroneously
+  returning TRUE even though the callback did not yet arrive.
+
+* added test for simultaneous pvGetComplete
+
+* pvGet/PutComplete return TRUE if no request is pending
+  
+  We issue a warning message in this case, since this is most
+  probably a logical error in the SNL program.
+
+* pvPut/GetComplete return TRUE in case of unassigned var
+  
+  It is friendlier to just go on than to let the program hang.
+  Note that this is still a user error and a message is issued
+  to indicate it.
+  
+  This change only affects the non-safe mode.
+
+* reduce severity of timeouts and user errors from errlogFatal to errlogMajor
+
+The following are fixes for build problems:
+
+* snc: added a dummy member in case struct UserVar is empty
+  
+  Not all C compilers allow empty struct definitions. This fixes
+  a problem when building on solaris-sparc.
+
+* test: split off subThreadSleep to its own C file
+  
+  This fixes a build error with older base releases.
+
+A number of improvements to the documentation have been made, too:
+
+* re-write of the Using chapter which is now up-to-date
+
+* re-structured explanation of runtime behaviour in Tutorial
+
+* moved explanation for -e switch from Using to Compiling
+
+* distinguish program parameters from CPP macros
+  
+  Program parameters are now consistently referred to as such. The term
+  "macro" is used only for C preprocessor macros. Wordings were adapted
+  accordingly and some related improvements made.
+
+* fix the branch names in the Installation page (thanks to Lewis Muir)
+
+* improved wording of frontpage blurb
+
+
+.. _Release_Notes_2.1.13:
+
+Release 2.1.13
+--------------
+
+:ref:`Known_Problems_2.1.13`
+
+User relevant changes:
+
+* seq: fix problem with synchronous pvPut/pvGet
+  
+  The problem was that that once a synchronous request times out, the
+  variable would never recover from the timeout state. This was because
+  the semaphores would not be signalled on timeout. Thanks to
+  Carl Lionberger <calionberger@lbl.gov> for the original report and
+  initial analysis, and to J. Lewis Muir <jlmuir@imca-cat.org> who
+  suggested using unique IDs in order to correctly discard callbacks
+  for time out requests. See `this tech-talk thread
+  <http://www.aps.anl.gov/epics/tech-talk/2013/msg01164.php>`_.
+  
+  The fix assumes that CA will eventually call the callback for each
+  accepted request, even if the channel disconnects. The CA documentation
+  suggests that this is indeed the case.
+
+* seq: fixed a corner case in ASYNC put/get
+  
+  If epicsEventTryWait succeeds, there could still be a previous request
+  pending that has timed out. This happens e.g. if the user code did not
+  call pvGetComplete resp. pvPutComplete. In that case we must reset the
+  request pointer to NULL in order to invalidate the request so it gets
+  ignored whenever it finally arrives.
+
+* added regression tests for pvGet/pvPut (SYNC) timeout recovery
+
+* added a test for using event flag in C function
+  
+  This has been added after Joe Sullivan <sullivan@aps.anl.gov>
+  noted that in version 2.1 there are no #define'ed constants for
+  event flags, as was the case in version 2.0. See
+  `this thread on tech-talk
+  <http://www.aps.anl.gov/epics/tech-talk/2013/msg00891.php>`_.
+
+Internal changes to the test subsystem:
+
+* no longer use the softIoc binary from base
+  
+  Instead, we use the same binary we produce for the test case, and
+  add an extra switch -t that enables running the sequencer program.
+
+* for testing, add a backdoor to change the default timeout
+  
+  I plan to add extra timeout parameters to pvPut and pvGet in version
+  2.2,  which is why I do not want this to be part of the public
+  (documented) API.
+
+* separate testHarness from startup for vxWorks
+  
+  This is so I can first start up the IOC, then switch to telnet console,
+  and then start the tests. The console output (quite verbose for some of
+  the tests) will be much faster in this way and the tests accordingly
+  more realistic.
+
+Documentation changes:
+
+* added link to known problems in 2.1.12 to release notes page
+* updated the known problems page
+* fixed obsolete email address in latex options
+* added rule for missing/excess PV names in array assign clause
+* make footer style same as header (for html output)
+* adapted README to ReleaseNotes split
+* extended HZB copyright to 2013 (only front page and LICENSE)
+* some html layout improvements
+* some improvements/updates in the Installation chapter
+* new layout and blurb for home page
+* fixed a few bad todo and note items
+* added link to talk slides to home page
+* fixed a typo in the reference
+* re-wrote the front page blurb
+* split release notes into separate files (one per version)
+* explain builtin delay as synonym for elapsed
+
+.. _Release_Notes_2.1.12:
+
+Release 2.1.12
+--------------
+
+:ref:`Known_Problems_2.1.12`
+
+seq: initial wait for channel connect now uses exponential backoff
+
+* The messages about not yet connected/monitored channels appear now
+  at a more user-friendly rate, stabilising at 1 per hour.
+
+build system:
+
+* builds now correctly against base 3.14.8, 3.14.10, 3.14.12, and 3.15
+
+* parallel make supported from base 3.14.12 onward
+
+docs: expanded reference section on C compatibility features
+
+* make clear that you can reference foreign entities
+  directly in action statements w/o recourse to escape syntax
+
+* explain why and how to avoid #include and other CPP directives
+  in multi-line escaped code blocks
 
 .. _Release_Notes_2.1.11:
 
@@ -719,514 +1127,3 @@ Other internal changes include:
   became anonymous struct types)
 * in order to implement the state change command, an additional
   argument is needed for the action callback
-
-
-Releases 2.0.x
---------------
-
-.. _Release_Notes_2.0.14:
-
-Release 2.0.14
-^^^^^^^^^^^^^^
-
--  fix windows build by using osiUnistd.h instead of unistd.h
-
-.. _Release_Notes_2.0.13:
-
-Release 2.0.13
-^^^^^^^^^^^^^^
-
--  added upload target to top-level Makefile
-
--  64bit fixes:
-
-   *  changed bitMask from unsigned long to epicsUInt32
-   *  output error message when trying to "assign" integers
-      that are longer than 32 bits
-   *  use fixed size types for pvXxx types (particularly,
-      use epicsInt32 instead of long in typedef pvLong)
-
--  several minor fixes
-
--  ansificated compiler sources
-
-.. _Release_Notes_2.0.12:
-
-Release 2.0.12
-^^^^^^^^^^^^^^
-
--  Directory dependencies to permit building with the parallel make
-   option -j.
-
--  Library dependencies changes to match EPICS Base R3.14.10.
-
--  Added the routine seqcaStats to src/seq/seq_qry.c.
-
--  Cleaned up compiler warnings in src/snc.
-
-
-.. _Release_Notes_2.0.11:
-
-Release 2.0.11
-^^^^^^^^^^^^^^
-
--  A bug fix in src/seq/seq_ca.c found by Stephanie Allison and Till
-   Straumann.
-
--  Moved the PV build configuration variables from configure/RELEASE to
-   the new CONFIG_SITE file, and moved CONFIG_APP functionality into
-   CONFIG. Also set CHECK_RELEASE to YES by default in
-   configure/Makefile.
-
-.. _Release_Notes_2.0.10:
-
-Release 2.0.10
-^^^^^^^^^^^^^^
-
--  Release 2.0.10 contains the new diagnostic seqcar(verbosity). This
-   produces report about all the channel access connections from sequence
-   programs.
-
-.. _Release_Notes_2.0.9:
-
-Release 2.0.9
-^^^^^^^^^^^^^
-
--  seq_connect now initializes assignCount and numMonitoredChans BEFORE
-   connecting to the PVs. With the previous versions it was possible to
-   signal that everything was connected and the first monitor received
-   before it actually happened.
-
-
-.. _Release_Notes_2.0.8:
-
-Release 2.0.8
-^^^^^^^^^^^^^
-
--  seq_main.c was casting a pointer to an int. On some architectures
-   this caused a warning message.
-
--  Support for cygwin32 on windows was added.
-
--  test/pv/ was still still using osiThread.h. This is replaced by
-   epicsThread.
-
--  test/simple and test/validate now use EPICS_BASE_IOC_LIBS instead of
-   EPICS_BASE_HOST_LIBS.
-
-
-.. _Release_Notes_2.0.7:
-
-Release 2.0.7
-^^^^^^^^^^^^^
-
--  A sequence program could wait up to 20 seconds before all PVs
-   connect and the first monitor occurs for each monitored PV. This
-   could happen even if all PVs are local. This is now fixed.
-
-
-.. _Release_Notes_2.0.6:
-
-Release 2.0.6
-^^^^^^^^^^^^^
-
--  When looking to see if all PVs have connected it now looks for first
-   monitor coming back as well as all PVs connecting. This prevents the
-   chance of using the value of a PV before it is given a value.
-
-
-.. _Release_Notes_2.0.5:
-
-Release 2.0.5
-^^^^^^^^^^^^^
-
--  Replaced the C++ static constructor used for command registration
-   with a generated registrar routine that must be listed in an IOC's
-   xxxInclude.dbd file for use on on non-vxWorks systems.  This
-   approach permits sequence programs to be placed in an external
-   support library and pulled in automatically by adding the
-   registrar() statement in the xxxInclude.dbd and linking the IOC
-   application against that library.  For a sequence program that
-   starts::
-
-       program demo ...
-
-   the dbd file should contain the statement::
-
-       registrar(demoRegistrar)
-
-   This is only required for applications that use the iocshell,
-   vxWorks IOCs will work as before.
-
--  Modifications to the demo/test programs needed to run these under
-   Base R3.14.3.
-
--  The config directory has been removed.
-
--  Replaced devSequencer.c with version supplied by Kukhee Kim, SLAC
-
-
-.. _Release_Notes_2.0.4:
-
-Release 2.0.4
-^^^^^^^^^^^^^
-
-Changes have been made to follow the R3.14.2 build rules.
-Generate an example application to see how to build sequencer applications.
-Note that this version requires R3.14.2 of base.
-
-
-.. _Release_Notes_2.0.1:
-
-Release 2.0.1
-^^^^^^^^^^^^^
-
-Eric Norum, Janet Anderson, and I [Marty Kraimer] spent some time
-making the sequencer work with EPICS release 3.14.0alpha2. We are NOT
-responsible for the sequencer. Release 2.0.1 should be considered an
-interim release until Greg White and Ron Chestnut have time to become
-familiar with the changes we made.
-
-We did not update the SNL/SEQ manual. The following briefly describes
-documentation changes needed for the 2.0.0 reference manual.
-
--  New Compiler Options
-
-   *  +i Code will be generated to automatically register sequence
-      functions and programs. This is the default
-
-   *  -i Do not generate registration code. Only useful on vxWorks to
-      save a small amount of memory.
-
--  Compiling and linking a program under Unix.
-
--  The exampleApp supplied with base demonstrates how to build sequence
-   programs that work with epics databases. It also shows how to build
-   a sequence program that runs without databases.
-
--  test/simple also shows how to build a sequence program that runs 
-   without databases running in the same process.
-
--  The main program generated by the +m compiler options looks like::
-
-      int main(int argc,char *argv[]) {
-          char * macro_def;
-          epicsThreadId threadId;
-          int callIocsh = 0;
-          if(argc>1 && strcmp(argv[1],"-s")==0) {
-              callIocsh=1;
-              --argc; ++argv;
-          }
-          macro_def = (argc>1)?argv[1]:NULL;
-          threadId = seq((void *)&snctest, macro_def, 0);
-          if(callIocsh) {
-              iocsh(0);
-          } else {
-              epicsThreadExitMain();
-          }
-          return(0);
-      }
-
-   Such a program is invoked via the call like::
-
-      <name> -s "xxx=xxx,..."
-
-   If the -s option is specified iocsh is started. This allows the user
-   to issue sequence commands like seqShow. If the -s option is not
-   given, the shell is not started. If a program is started as a
-   background process the -s option should not be specified.
-
-   The other option argument is macro substitutions.
-
-Comments about changes made for release 2.0.1
-
--  I think config should be removed. Just require 3.14 and later.
-
--  in test/simple and test/validate::
-
-     assign v to "grw:xxxExample";
-
-   changed to
-
-     assign v to "{user}:xxxExample";
-
--  in src/dev:
-   *  dev.c renamed to devSequencer.c
-   *  seq.dbd renamed to devSequencer.dbd
-
--  in src/snc
-   *  The generated main program is different. See below
-   *  New option -i. See above
-   *  Made many changes to get rid of warning messages.
-
--  in src/seq
-   *  seq now returns an epicsThreadId
-   *  all addresses now printed with %p
-   *  several epicsPrintf replaced with printf.
-   *  Got rid of simple shell supplied by seq. No longer needed.
-
--  in src/pv
-
-   *  Only LIBRARY = pv is generated. It includes the stuff
-      that was in pvKtl, pvCa, and pvFile if they are requested.
-   *  This was done because the old way caused a circular dependency
-      that is not accepted by windows.
-
-
-.. _Release_Notes_2.0:
-
-Release 2.0
------------
-
-Version 2.0 of the sequencer and state notation compiler is
-available for EPICS release R3.14 and later. We have added several
-enhancements to the language and to the run-time sequencer. State
-programs must be compiled under the new state notation compiler to
-execute properly with the new sequencer. However, under most
-circumstances no source-level changes to existing programs are
-required.
-
-Portability changes
-^^^^^^^^^^^^^^^^^^^
-
-These changes allow programs to run unchanged on hosts and
-IOCs.
-
-Replaced VxWorks dependencies with OSI routines
-   All VxWorks routines have been replaced with the appropriate OSI
-   (Operating System Independent) routines. State programs can run in
-   any environment for which there is an OSI implementation.
-
-Unused (and undocumented) ``VX_OPT`` option has been removed.
-
-Replaced direct channel access calls with new PV API
-   All CA calls have been replaced with equivalent calls to a new PV
-   (process variable) API which can be layered on top of not just CA
-   but also other message systems. See :doc:`PV-API`.
-
-Added optional generation of main program
-   The new :option:`+m` (main) option generates a C main program whose
-   single argument is a list of macro assignments.
-
-   When this option is enabled, the main thread reads from standard
-   input and can execute ``seqShow``, ``seqChanShow`` etc. on demand.
-   End of file causes the sequencer to exit.
-
-New Language Features
-^^^^^^^^^^^^^^^^^^^^^
-
-Entry handler
-   A one-off :token:`entry` handler can be supplied (c.f. the
-   existing :token:`exit` handler). This is called once, at sequencer
-   start-up, in the context of the first state set, before the
-   remaining state set threads have been created. See
-   :ref:`GlobalEntryExit`.
-
-Entry and exit actions
-   The :token:`entry` block of a state is executed each time the state is
-   entered; the :token:`exit` block is executed each time the state is left.
-   Note that these blocks are associated with a state and are not the
-   same as the one-off entry and exit handlers. See
-   :ref:`state entry and exit blocks`.
-
-State options
-   :option:`-t`, :option:`-e` and :option:`-x` are now recognized
-   options within the scope of a state. :option:`-t` inhibits the
-   "timer reset" on re-entry to a state from itself; :option:`-e` (for
-   "entry") is used with the new :token:`entry` block, and forces the
-   :token:`entry` statements to be executed on all entries to a state, even
-   if from the same state; :option:`-x` (for "exit") is complementary
-   to :option:`-e`, but for the new :token:`exit` block. See
-   :ref:`StateOption`.
-
-Queueable monitors
-   Monitor messages can be queued and then dequeued at leisure. This
-   means that monitor messages are not lost, even when posted rapidly
-   in succession. This feature is supported by new :token:`syncq`,
-   :c:func:`pvGetQ` and :c:func:`pvFreeQ` language elements, and a new
-   ``seqQueueShow`` routine. When SNL arrays are used, a single queue
-   is shared by the process variables associated with the
-   elements of the array, which can be useful for parallel control. See
-   :ref:`QueuingMonitors` and :token:`syncq`.
-
-.. _Device support:
-
-Device support
-   An device support module has been added. This allows EPICS records
-   to reference sequencer internals. At present this is very basic
-   and can only return state-set names. See
-   :ref:`Verifyingtheinstallation` for a well-hidden example (look for
-   ``caget ss0``).
-
-.. _Local variables:
-
-Local variables
-   SNL does not support the declaration of local variables. However,
-   the C code generated for a :token:`when` clause is now placed within an
-   extra level of braces and the C escape mechanism can be used to
-   declare a local variable. See :ref:`variable scope`.
-
-More functions are safe in action code
-   In previous versions, some functions, e.g. :c:func:`pvPut`, have acquired
-   a resource lock and others, e.g. :c:func:`efTestAndClear`, have not. Those
-   that didn't were intended for use in action code and those that did
-   not were intended for use in :token:`when` clauses. This was confusing
-   and dangerous. All such functions now acquire a mutex (that can be
-   taken recursively).
-
-Asynchronous puts
-   :c:func:`pvPut` can now put process variables asynchronously by using an
-   extra ``ASYNC`` argument. Completion can be tested using the new
-   :c:func:`pvPutComplete`. Arrays are supported (so :c:func:`pvPutComplete` can be
-   used to test whether a set of puts has completed). See also
-   :ref:`AsynchronousUseofpvPut`.
-
-Synchronous/asynchronous override on gets and puts
-   :c:func:`pvGet` and :c:func:`pvPut` both accept an optional ``SYNC`` or
-   ``ASYNC`` argument that, for :c:func:`pvGet`, overrides the default as set
-   using the :option:`-a` option and, for :c:func:`pvPut`, overrides the
-   default synchronous behavior.
-
-Sequencer deletion re-written
-   Sequencer deletion has been completely re-written. You can no longer
-   delete a sequencer by deleting one of its tasks. Instead you must
-   use the new ``seqStop`` routine. See
-   :ref:`Stopping the State Program Tasks`.
-
-efClear can wake up state sets
-   Clearing an event flag can now wake up state sets that reference
-   the event flag in :token:`when` tests.
-
-More C syntax is supported
-   The :token:`to` in :token:`assign`, :token:`sync` and :token:`syncq` statements is now
-   optional.
-
-   Compound expressions such as ``i=1,j=2`` (often used in ``for``
-   loops) are now permitted.
-
-   Variables can now be initialized in declarations such as ``int
-   i=2;``.
-
-   Pre-processor lines are now permitted between state sets and states
-   (relaxes restrictions on using ``#include`` to include code).
-
-   ``~`` (complement) and ``^`` (exclusive or) operators are permitted.
-
-   ANSI string concatenation, e.g. ``"xxx" "yyy"`` is the same as
-   ``"xxxyyy"``, is supported.
-
-   Full exponential representation is supported for numbers
-   (previously couldn't use ``E`` format).
-
-Bugs fixed
-^^^^^^^^^^
-
-Avoidance of segmentation violations
-   SEGV no longer occurs if an undeclared variable or event flag is
-   referenced
-
-   SEGV no longer occurs if the last bit of an event mask is used
-
-   SEGV no longer occurs when doing ``seqShow`` and there was no
-   previous state
-
-   Miscellaneous other problems found by purify were fixed.
-
-Avoidance of race condition which prevented monitors from being enabled
-   If a connection handler was called before ``seq_pvMonitor``, a race
-   condition meant that the ``ca_add_array_event`` routine might
-   never get called.
-
-Miscellaneous
-^^^^^^^^^^^^^
-
-Compilation warnings have been avoided wherever possible.
-
-A 60Hz system clock frequency is no longer assumed.
-
-Error reporting is now more consistent; it is currently just using
-``errlogPrintf``.
-
-The new EPICS R3.14 *configure*-based make rules are used.
-
-Future Plans
-^^^^^^^^^^^^
-
-Several items remain unsupported or only partially supported. Users
-are encouraged to provide feedback on this list or on other desired
-items.
-
-Device support
-   This is partially supported. See `Device support`_.
-
-Local variables
-   These are partially supported. See `Local variables`_.
-
-pvNew dynamic loading
-   This would remove some undesirable library dependencies. See
-   :ref:`pvApiOverview`.
-
-Hierarchical states
-   This would be a major enhancement and would, incidentally, bring
-   the sequencer model into very close agreement with the Harel model
-   that is espoused by the UML. Events would be propagated up the
-   state hierarchy.
-
-.. _Release_Notes_1.9:
-
-Release 1.9
------------
-
-With version 1.9, we have incorporated many extensions to
-the state notation language. Some of these changes offer
-significant advantages for programs and systems with a large number
-of process variables.
-
-Number of process variables
-   The previous restriction on the number of process variables
-   that could be defined no longer applies. Only the amount of memory
-   on the target processor limits the number of variables.
-
-Array assignments
-   Individual elements of an array may be assigned to process
-   variables. This feature simplifies many codes that contain groups
-   of similar variables. Furthermore, double-subscripted arrays allow
-   arrays of array-valued variables.
-
-Dynamic assignments
-   Process variables may now be dynamically assigned or
-   re-assigned within the language at run time.
-
-Hex constants
-   Hexadecimal numbers are now permitted within the language syntax.
-   Previously, these had to be defined in escaped C code.
-
-Time stamp
-   The programmer now has access to the time stamp associated with a
-   process variable.
-
-Pointers
-   Variables may now be declared as pointers.
-
-seqShow
-   We enhanced the ``seqShow`` command to present more relevant
-   information about the running programs.
-
-seqChanShow
-   The ``seqChanShow`` command now allows specification of a search
-   string on the variable name, permits forward and backward stepping
-   or skipping through the variable list, and optionally displays only
-   variables that are or are not connected.
-
-   The syntax for displaying only variables that are not connected is
-   ``seqChanShow "<seq_program_name>", "-"``
-
-ANSI prototypes
-   SNC include files now use ANSI prototypes for all functions. To the
-   programmer this means that an ANSI compiler must be used to compile
-   the intermediate C code.
-
-Fix for task deletion
-   Version 1.8 of the sequencer didn't handle the task deletion
-   properly if a task tried to delete itself. We corrected this in
-   version 1.9.
