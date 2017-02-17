@@ -60,7 +60,7 @@ pvStat seq_connect(SPROG *sp, boolean wait)
 {
 	pvStat		status;
 	unsigned	nch;
-	int		delay = 10;
+	int		delay = 2;
 	boolean		ready = FALSE;
 
 	/*
@@ -100,9 +100,12 @@ pvStat seq_connect(SPROG *sp, boolean wait)
 	if (wait)
 	{
 		boolean firstTime = TRUE;
+		double timeStartWait;
+		pvTimeGetCurrentDouble(&timeStartWait);
 
 		do {
-			unsigned ac,mc,cc,fmc;
+			unsigned ac, mc, cc, gmc;
+			double timeNow = timeStartWait;
 			/* Check whether we have been asked to exit */
 			if (sp->die)
 				return pvStatERROR;
@@ -111,21 +114,22 @@ pvStat seq_connect(SPROG *sp, boolean wait)
 			ac = sp->assignCount;
 			mc = sp->monitorCount;
 			cc = sp->connectCount;
-			fmc = sp->firstMonitorCount;
+			gmc = sp->firstMonitorCount;
 			epicsMutexUnlock(sp->programLock);
 
-			ready = ac == cc && mc == fmc;
+			ready = ac == cc && mc == gmc;
 			if (!ready)
 			{
 				if (!firstTime)
 				{
 					errlogSevPrintf(errlogMinor,
-						"%s[%d]: assigned=%d, connected=%d, "
+						"%s[%d](after %d sec): assigned=%d, connected=%d, "
 						"monitored=%d, got monitor=%d\n",
 						sp->progName, sp->instance,
-						ac, cc, mc, fmc);
-					firstTime = FALSE;
+						(int)(timeNow - timeStartWait),
+						ac, cc, mc, gmc);
 				}
+				firstTime = FALSE;
 				if (epicsEventWaitWithTimeout(
 					sp->ready, (double)delay) == epicsEventWaitError)
 				{
@@ -133,7 +137,11 @@ pvStat seq_connect(SPROG *sp, boolean wait)
 						"epicsEventWaitWithTimeout failure\n");
 					return pvStatERROR;
 				}
-				if (delay < 60) delay += 10;
+				pvTimeGetCurrentDouble(&timeNow);
+				if (delay < 3600)
+					delay = (int)(delay*1.71);
+				else
+					delay = 3600;
 			}
 		} while (!ready);
 		printf("%s[%d]: all channels connected & received 1st monitor\n",
@@ -149,14 +157,16 @@ pvStat seq_connect(SPROG *sp, boolean wait)
 void seq_get_handler(
 	void *var, pvType type, unsigned count, pvValue *value, void *arg, pvStat status)
 {
-	PVREQ	*rQ = (PVREQ *)arg;
-	CHAN	*ch = rQ->ch;
+	PVREQ	*rq = (PVREQ *)arg;
+	CHAN	*ch = rq->ch;
+	SSCB	*ss = rq->ss;
 	SPROG	*sp = ch->sprog;
 
-	assert(ch->dbch != NULL);
 	freeListFree(sp->pvReqPool, arg);
-	/* Process event handling in each state set */
-	proc_db_events(value, type, ch, rQ->ss, GET_COMPLETE, status);
+	if (!ch->dbch) return;
+	/* ignore callback if not expected, e.g. already timed out */
+	if (ss->getReq[chNum(ch)] == rq)
+		proc_db_events(value, type, ch, ss, GET_COMPLETE, status);
 }
 
 /*
@@ -166,14 +176,16 @@ void seq_get_handler(
 void seq_put_handler(
 	void *var, pvType type, unsigned count, pvValue *value, void *arg, pvStat status)
 {
-	PVREQ	*rQ = (PVREQ *)arg;
-	CHAN	*ch = rQ->ch;
+	PVREQ	*rq = (PVREQ *)arg;
+	CHAN	*ch = rq->ch;
+	SSCB	*ss = rq->ss;
 	SPROG	*sp = ch->sprog;
 
-	assert(ch->dbch != NULL);
 	freeListFree(sp->pvReqPool, arg);
-	/* Process event handling in each state set */
-	proc_db_events(value, type, ch, rQ->ss, PUT_COMPLETE, status);
+	if (!ch->dbch) return;
+	/* ignore callback if not expected, e.g. already timed out */
+	if (ss->putReq[chNum(ch)] == rq)
+		proc_db_events(value, type, ch, ss, PUT_COMPLETE, status);
 }
 
 /*
@@ -186,7 +198,7 @@ void seq_mon_handler(
 	SPROG	*sp = ch->sprog;
 	DBCHAN	*dbch = ch->dbch;
 
-	assert(dbch != NULL);
+	if (!dbch) return;
 	/* Process event handling in each state set */
 	proc_db_events(value, type, ch, sp->ss, MON_COMPLETE, status);
 	if (!dbch->gotOneMonitor)
@@ -334,7 +346,9 @@ void seq_disconnect(SPROG *sp)
 		DEBUG("seq_disconnect: disconnect %s from %s\n",
 			ch->varName, dbch->dbName);
 		/* Disconnect this PV */
+		epicsMutexUnlock(sp->programLock);
 		status = pvVarDestroy(dbch->pvid);
+		epicsMutexMustLock(sp->programLock);
 		dbch->pvid = NULL;
 		if (status != pvStatOK)
 			errlogSevPrintf(errlogFatal, "seq_disconnect: var %s, pv %s: pvVarDestroy() failure: "
@@ -351,15 +365,24 @@ void seq_disconnect(SPROG *sp)
 
 pvStat seq_monitor(CHAN *ch, boolean on)
 {
-	DBCHAN	*dbch = ch->dbch;
+	DBCHAN	*dbch;
+	SPROG	*sp = ch->sprog;
 	pvStat	status;
+	boolean	done;
 
 	assert(ch);
+
+	epicsMutexMustLock(sp->programLock);
+	dbch = ch->dbch;
 	assert(dbch);
-	if (on == (dbch->monid != NULL))			/* already done */
-		return pvStatOK;
-	DEBUG("calling pvVarMonitor%s(%p)\n", on?"On":"Off", dbch->pvid);
+	done = on == (dbch->monid != NULL);
 	dbch->gotOneMonitor = FALSE;
+	epicsMutexUnlock(sp->programLock);
+
+	if (done)
+		return pvStatOK;
+
+	DEBUG("calling pvVarMonitor%s(%p)\n", on?"On":"Off", dbch->pvid);
 	if (on)
 		status = pvVarMonitorOn(
 				dbch->pvid,		/* pvid */
@@ -390,7 +413,11 @@ void seq_conn_handler(void *var, int connected)
 
 	epicsMutexMustLock(sp->programLock);
 
-	assert(dbch != NULL);
+	if (!dbch)
+	{
+		epicsMutexUnlock(sp->programLock);
+		return;
+	}
 
 	/* Note that CA may call this while pvVarCreate is still running,
 	   so dbch->pvid may not yet be initialized. */
@@ -464,16 +491,6 @@ void seq_conn_handler(void *var, int connected)
 	   Why each one? Because pvConnectCount and pvMonitorCount should
 	   act like monitored anonymous channels. Any state set might be
 	   using these functions inside a when-condition and it is expected
-	   that such conditions get checked whenever these counts change.
-
-	   Another reason is the pvConnected built-in: a state set with a
-	   when(pvConnected(var)) should be able to make progress
-	   if the channel is now connected.
-
-	   TODO: This is really a crude solution. It would be better to post
-	   special events reserved for pvConnectCount and pvMonitorCount
-	   (if we could assume safe mode is always on we'd just turn them
-	   into anonymous PVs), and to post the regular PV event for the
-	   variable that has connected (or disconnected). */
+	   that such conditions get checked whenever these counts change. */
 	seqWakeup(sp, 0);
 }

@@ -1,7 +1,3 @@
-/*************************************************************************\
-This file is distributed subject to a Software License Agreement found
-in the file LICENSE that is included with this distribution.
-\*************************************************************************/
 /*
 ** This file contains all sources (including headers) to the LEMON
 ** LALR(1) parser generator.  The sources have been combined into a
@@ -285,7 +281,6 @@ struct lemon {
   char *tokendest;         /* Code to execute to destroy token data */
   char *vardest;           /* Code for the default non-terminal destructor */
   char *filename;          /* Name of the input file */
-  char *outputdir;         /* Name of the output directory */
   char *outname;           /* Name of the current output file */
   char *tokenprefix;       /* A prefix added to token names in the .h file */
   int nconflict;           /* Number of parsing conflicts */
@@ -972,7 +967,7 @@ void FindFollowSets(struct lemon *lemp)
   }while( progress );
 }
 
-static int resolve_conflict(struct action *,struct action *, struct symbol *);
+static int resolve_conflict(struct action *,struct action *);
 
 /* Compute the reduce actions, and resolve conflicts.
 */
@@ -1026,7 +1021,7 @@ void FindActions(struct lemon *lemp)
       for(nap=ap->next; nap && nap->sp==ap->sp; nap=nap->next){
          /* The two actions "ap" and "nap" have the same lookahead.
          ** Figure out which one should be used */
-         lemp->nconflict += resolve_conflict(ap,nap,lemp->errsym);
+         lemp->nconflict += resolve_conflict(ap,nap);
       }
     }
   }
@@ -1061,8 +1056,7 @@ void FindActions(struct lemon *lemp)
 */
 static int resolve_conflict(
   struct action *apx,
-  struct action *apy,
-  struct symbol *errsym   /* The error symbol (if defined.  NULL otherwise) */
+  struct action *apy
 ){
   struct symbol *spx, *spy;
   int errcnt = 0;
@@ -1398,7 +1392,6 @@ int main(int argc, char **argv)
   static int statistics = 0;
   static int mhflag = 0;
   static int nolinenosflag = 0;
-  static char *outputdir = 0;
   static int noResort = 0;
   static struct s_options options[] = {
     {OPT_FLAG, "b", (char*)&basisflag, "Print only the basis in report."},
@@ -1415,7 +1408,6 @@ int main(int argc, char **argv)
     {OPT_FLAG, "s", (char*)&statistics,
                                    "Print parser stats to standard output."},
     {OPT_FLAG, "x", (char*)&version, "Print the version number."},
-    {OPT_STR,  "o", (char*)&outputdir, "Directory for output files (default: same as input)."},
     {OPT_FLAG,0,0,0}
   };
   int i;
@@ -1433,7 +1425,6 @@ int main(int argc, char **argv)
   }
   memset(&lem, 0, sizeof(lem));
   lem.errorcnt = 0;
-  lem.outputdir = outputdir;
 
   /* Initialize the machine */
   Strsafe_init();
@@ -1524,7 +1515,7 @@ int main(int argc, char **argv)
   }
 
   /* return 0 on success, 1 on failure. */
-  exitcode = (lem.errorcnt > 0);
+  exitcode = ((lem.errorcnt > 0) || (lem.nconflict > 0)) ? 1 : 0;
   exit(exitcode);
   return (exitcode);
 }
@@ -2525,8 +2516,9 @@ void Parse(struct lemon *gp)
   filesize = ftell(fp);
   rewind(fp);
   filebuf = (char *)malloc( filesize+1 );
-  if( filesize>100000000 || filebuf==0 ){
-    ErrorMsg(ps.filename,0,"Input file too large.");
+  if( filebuf==0 ){
+    ErrorMsg(ps.filename,0,"Can't allocate %d of memory to hold this file.",
+      filesize+1);
     gp->errorcnt++;
     fclose(fp);
     return;
@@ -2718,37 +2710,13 @@ PRIVATE char *file_makename(struct lemon *lemp, const char *suffix)
 {
   char *name;
   char *cp;
-  char *inputname;
-  int outputdirlen;
-  char *outputdir;
 
-  outputdir = lemp->outputdir;
-  if (!outputdir) {
-    outputdir = "";
-  }
-  outputdirlen = lemonStrlen(outputdir);
-
-  inputname = strrchr(lemp->filename,'/');
-  if (outputdirlen > 0 && inputname) {
-    inputname += 1;
-  } else {
-    inputname = lemp->filename;
-  }
-
-  name = malloc( outputdirlen + 1 + lemonStrlen(inputname) + lemonStrlen(suffix) + 1);
-
+  name = (char*)malloc( lemonStrlen(lemp->filename) + lemonStrlen(suffix) + 5 );
   if( name==0 ){
     fprintf(stderr,"Can't allocate space for a filename.\n");
     exit(1);
   }
-  strcpy(name,"");
-  if (outputdirlen > 0) {
-    strcat(name,outputdir);
-    if (outputdir[outputdirlen-1] != '/') {
-      strcat(name,"/");
-    }
-  }
-  strcat(name,inputname);
+  strcpy(name,lemp->filename);
   cp = strrchr(name,'.');
   if( cp ) *cp = 0;
   strcat(name,suffix);
@@ -3490,7 +3458,7 @@ void print_stack_union(
         break;
       }
       hash++;
-      if( hash>=(unsigned)arraysize ) hash = 0;
+      if( hash>=arraysize ) hash = 0;
     }
     if( types[hash]==0 ){
       sp->dtnum = hash + 1;
@@ -4324,7 +4292,8 @@ void Strsafe_init(){
   if( x1a ){
     x1a->size = 1024;
     x1a->count = 0;
-    x1a->tbl = (x1node*)calloc(1024, sizeof(x1node) + sizeof(x1node*));
+    x1a->tbl = (x1node*)malloc( 
+      (sizeof(x1node) + sizeof(x1node*))*1024 );
     if( x1a->tbl==0 ){
       free(x1a);
       x1a = 0;
@@ -4361,7 +4330,8 @@ int Strsafe_insert(const char *data)
     struct s_x1 array;
     array.size = size = x1a->size*2;
     array.count = x1a->count;
-    array.tbl = (x1node*)calloc(size, sizeof(x1node) + sizeof(x1node*));
+    array.tbl = (x1node*)malloc(
+      (sizeof(x1node) + sizeof(x1node*))*size );
     if( array.tbl==0 ) return 0;  /* Fail due to malloc failure */
     array.ht = (x1node**)&(array.tbl[size]);
     for(i=0; i<size; i++) array.ht[i] = 0;
@@ -4488,7 +4458,8 @@ void Symbol_init(){
   if( x2a ){
     x2a->size = 128;
     x2a->count = 0;
-    x2a->tbl = (x2node*)calloc(128, sizeof(x2node) + sizeof(x2node*));
+    x2a->tbl = (x2node*)malloc( 
+      (sizeof(x2node) + sizeof(x2node*))*128 );
     if( x2a->tbl==0 ){
       free(x2a);
       x2a = 0;
@@ -4525,7 +4496,8 @@ int Symbol_insert(struct symbol *data, const char *key)
     struct s_x2 array;
     array.size = size = x2a->size*2;
     array.count = x2a->count;
-    array.tbl = (x2node*)calloc(size, sizeof(x2node) + sizeof(x2node*));
+    array.tbl = (x2node*)malloc(
+      (sizeof(x2node) + sizeof(x2node*))*size );
     if( array.tbl==0 ) return 0;  /* Fail due to malloc failure */
     array.ht = (x2node**)&(array.tbl[size]);
     for(i=0; i<size; i++) array.ht[i] = 0;
@@ -4685,7 +4657,8 @@ void State_init(){
   if( x3a ){
     x3a->size = 128;
     x3a->count = 0;
-    x3a->tbl = (x3node*)calloc(128, sizeof(x3node) + sizeof(x3node*));
+    x3a->tbl = (x3node*)malloc( 
+      (sizeof(x3node) + sizeof(x3node*))*128 );
     if( x3a->tbl==0 ){
       free(x3a);
       x3a = 0;
@@ -4722,7 +4695,8 @@ int State_insert(struct state *data, struct config *key)
     struct s_x3 array;
     array.size = size = x3a->size*2;
     array.count = x3a->count;
-    array.tbl = (x3node*)calloc(size, sizeof(x3node) + sizeof(x3node*));
+    array.tbl = (x3node*)malloc(
+      (sizeof(x3node) + sizeof(x3node*))*size );
     if( array.tbl==0 ) return 0;  /* Fail due to malloc failure */
     array.ht = (x3node**)&(array.tbl[size]);
     for(i=0; i<size; i++) array.ht[i] = 0;
@@ -4779,7 +4753,7 @@ struct state **State_arrayof()
   int i,size;
   if( x3a==0 ) return 0;
   size = x3a->count;
-  array = (struct state **)calloc(size, sizeof(struct state *));
+  array = (struct state **)malloc( sizeof(struct state *)*size );
   if( array ){
     for(i=0; i<size; i++) array[i] = x3a->tbl[i].data;
   }
@@ -4825,7 +4799,8 @@ void Configtable_init(){
   if( x4a ){
     x4a->size = 64;
     x4a->count = 0;
-    x4a->tbl = (x4node*)calloc(64, sizeof(x4node) + sizeof(x4node*));
+    x4a->tbl = (x4node*)malloc( 
+      (sizeof(x4node) + sizeof(x4node*))*64 );
     if( x4a->tbl==0 ){
       free(x4a);
       x4a = 0;
@@ -4862,7 +4837,8 @@ int Configtable_insert(struct config *data)
     struct s_x4 array;
     array.size = size = x4a->size*2;
     array.count = x4a->count;
-    array.tbl = (x4node*)calloc(size, sizeof(x4node) + sizeof(x4node*));
+    array.tbl = (x4node*)malloc(
+      (sizeof(x4node) + sizeof(x4node*))*size );
     if( array.tbl==0 ) return 0;  /* Fail due to malloc failure */
     array.ht = (x4node**)&(array.tbl[size]);
     for(i=0; i<size; i++) array.ht[i] = 0;

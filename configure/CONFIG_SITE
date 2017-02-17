@@ -5,6 +5,10 @@ PVCA   = TRUE
 PVFILE = FALSE
 PVKTL  = FALSE
 
+# Use this if you get stack overflows when monitoring or
+# getting large arrays
+USE_MALLOC_FOR_TEMPORARY_COPY=NO
+
 # To restrict the architectures to cross-compile for, set this:
 #CROSS_COMPILER_TARGET_ARCHS = vxWorks-68040
 
@@ -20,6 +24,3 @@ PVKTL  = FALSE
 # You might want to change this to something like
 # RE2C = /path/to/your/re2c/installation/bin/re2c
 RE2C = re2c$(HOSTEXE)
-
-# Parser generator
-LEMON = $(call PATH_FILTER,$(INSTALL_HOST_BIN)/lemon$(HOSTEXE))
