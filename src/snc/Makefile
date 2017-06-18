@@ -62,7 +62,7 @@ lexer.c: snl.re
 endif
 
 $(COMMON_DIR)/snl.bnf: snl.lem
-	$(LEMON) o=. -g $< > $@
+	$(abspath $(LEMON)) o=. -g $< > $@
 
 $(COMMON_DIR)/bnf.inc: ../bnf2txt.pl snl.re $(COMMON_DIR)/snl.bnf
 	$(PERL) $^ > $@
