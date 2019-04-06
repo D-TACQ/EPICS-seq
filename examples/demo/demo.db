@@ -3,6 +3,7 @@ record(ao,"$(PREFIX):lightOff") {
     field(PREC,"6")
     field(HOPR,"10.0")
     field(LOPR,"0.0")
+    field(PINI,"YES")
 }
 
 record(ao,"$(PREFIX):lightOn") {
@@ -10,6 +11,7 @@ record(ao,"$(PREFIX):lightOn") {
     field(PREC,"6")
     field(HOPR,"10.0")
     field(LOPR,"0.0")
+    field(PINI,"YES")
 }
 
 record(ao,"$(PREFIX):loLimit") {
@@ -17,6 +19,7 @@ record(ao,"$(PREFIX):loLimit") {
     field(PREC,"6")
     field(HOPR,"10.0")
     field(LOPR,"0.0")
+    field(PINI,"YES")
 }
 
 record(ao,"$(PREFIX):voltage") {
@@ -39,28 +42,11 @@ record(ao,"$(PREFIX):hiLimit") {
     field(PREC,"6")
     field(HOPR,"10.0")
     field(LOPR,"0.0")
+    field(PINI,"YES")
 }
 
 record(bo,"$(PREFIX):light") {
     field(ZNAM,"off")
     field(ONAM,"on")
     field(ZSV,"MINOR")
-}
-
-record(stringin,"$(PREFIX):ss_light") {
-    field(DTYP,"Sequencer Internals")
-    field(INP,"@demo light")
-    field(SCAN,"1 second")
-}
-
-record(stringin,"$(PREFIX):ss_ramp") {
-    field(DTYP,"Sequencer Internals")
-    field(INP,"@demo ramp")
-    field(SCAN,"1 second")
-}
-
-record(stringin,"$(PREFIX):ss_limit") {
-    field(DTYP,"Sequencer Internals")
-    field(INP,"@demo limit")
-    field(SCAN,"1 second")
 }

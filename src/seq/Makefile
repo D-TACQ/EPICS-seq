@@ -7,7 +7,7 @@ include $(TOP)/configure/CONFIG
 #  Include files
 INC += seqCom.h
 INC += seqStats.h
-INC += seq_release.h
+INC += seq_snc.h
 
 #  seq library
 LIBRARY = seq
@@ -30,6 +30,3 @@ OBJLIB_SRCS = $(seq_SRCS)
 include $(TOP)/configure/RULES
 #----------------------------------------
 #  ADD RULES AFTER THIS LINE
-
-$(COMMON_DIR)/seq_release.h: $(TOP)/configure/CONFIG ../seq_release.pl
-	$(PERL) ../seq_release.pl $(SEQ_RELEASE) > $@
