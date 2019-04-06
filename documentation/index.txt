@@ -18,7 +18,7 @@ State Notation Language and Sequencer
 Welcome to the home page of the **EPICS Sequencer** project.
 
 
-.. include:: about.inc
+.. include:: About.txt
 
 .. toctree::
    :hidden:
@@ -30,12 +30,12 @@ Welcome to the home page of the **EPICS Sequencer** project.
    Tutorial
    Compiling
    Using
+   EscapeToC
    Reference
-   PV-API
    Examples
-   ReleaseNotes-2-1
-   ReleaseNotes-2-0-and-older
+   ReleaseNotes-2-2
    KnownProblems
    Plans
+   Glossary
 
-.. :ref:`genindex`
+.. `genindex`
