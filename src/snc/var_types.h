@@ -13,17 +13,15 @@ in the file LICENSE that is included with this distribution.
 
 enum type_tag {
     T_NONE,     /* undeclared (or declared as foreign) variable */
-    T_EVFLAG,   /* event flags */
+    T_EVFLAG,   /* event flag */
     T_VOID,     /* void type */
     T_PRIM,     /* primitive types: numbers, char, string */
     T_FOREIGN,  /* foreign types (declared in C code) */
     T_POINTER,
     T_ARRAY,
     T_FUNCTION,
-#if 0
-    T_CONST,
-#endif
     T_STRUCT,   /* struct defined in SNL code */
+    T_PV,
 };
 
 enum foreign_type_tag {
@@ -36,6 +34,7 @@ enum foreign_type_tag {
 struct type {
     enum type_tag tag;
     unsigned is_const:1;
+    unsigned contains_pv;
     union {
         enum prim_type_tag prim;
         struct {
@@ -53,30 +52,65 @@ struct type {
             Type *return_type;
             Node *param_decls;
         } function;
-#if 0
-        struct {
-            Type *value_type;
-        } constant;
-#endif
         struct {
             const char *name;
-            Node *member_decls;
+            unsigned num_members;   /* only SNL members, not escaped code */
+            Node *member_decls;     /* all members, including escaped code */
+            int mark;               /* avoid infinite recursion when resolving struct names */
         } structure;
+        struct {
+            Type *value_type;
+        } pv;
     } val;
 };
 
 /* base type for any combination of pointers and arrays */
 Type *base_type(Type *t);
 
-/* array length in 1st and 2nd dimension */
-unsigned type_array_length1(Type *t);
-unsigned type_array_length2(Type *t);
+/* child type for pointer, array, function, and pv */
+Type *child_type(Type *t);
+
+/* array length */
+unsigned type_array_length(Type *t);
 
 /* whether type can be assign'ed to a PV */
 unsigned type_assignable(Type *t);
 
-/* generate code for a type, name is an optional variable name  */
+/* whether type contains PV marker */
+Type *type_contains_pv(Type *t);
+
+#define type_is_valid_pv_child(t) ((t)->tag == T_PRIM || (t)->tag == T_VOID || \
+    ((t)->tag == T_ARRAY && (t)->val.array.elem_type->tag == T_PRIM))
+
+#define type_is_function(t) ((t)->tag == T_FUNCTION ? t : \
+    (t)->tag == T_POINTER && (t)->val.pointer.value_type->tag == T_FUNCTION ? \
+    (t)->val.pointer.value_type : 0)
+
+#define type_is_pointer(t) ((t)->tag == T_POINTER ? (t)->val.pointer.value_type :\
+    (t)->tag == T_ARRAY ? (t)->val.array.elem_type :\
+    ((t)->tag == T_PRIM && (t)->val.prim == P_STRING) ? mk_prim_type(P_CHAR) : 0)
+
+#define strip_pv_type(t) ((t)->tag == T_PV ? (t)->val.pv.value_type : (t))
+
+/*
+ * The type T_NONE roughly corresponds to the "dynamic type" in the
+ * gradual typing literature: it is compatible with everything.
+ * However, a foreign typedef has the same status (it could be anything).
+ */
+#define type_is_dynamic(t) ((t)->tag == T_NONE || \
+    ((t)->tag == T_FOREIGN && (t)->val.foreign.tag == F_TYPENAME))
+
+/*
+ * Traverse type, calling iteratee on each T_PV or T_EVFLAG node.
+ * The return type indicates an early termination of the traversal.
+ */
+typedef int on_channel_type(Type *t, void *arg);
+int traverse_channel_type(Type *t, on_channel_type *iter, void *arg);
+
+/* generate type, name is an optional variable name */
 void gen_type(Type *t, const char *prefix, const char *name);
+/* generate channel id type */
+void gen_pv_type(Type *t, const char *prefix, const char *name);
 
 /* creating types */
 Type *mk_prim_type(enum prim_type_tag tag);
@@ -89,9 +123,12 @@ Type *mk_array_type(Type *t, unsigned n);
 Type *mk_const_type(Type *t);
 Type *mk_function_type(Type *t, Node *ps);
 Type *mk_structure_type(const char *name, Node *members);
+Type *mk_pv_type(Type *t);
 
 Node *mk_decl(Node *d, Type *t);
 Node *mk_decls(Node *ds, Type *t);
+
+Node *new_decl(Token k, Type *type);
 
 void dump_type(Type *t, int l);
 
@@ -123,10 +160,8 @@ const char *type_tag_names[]
     "T_POINTER",
     "T_ARRAY",
     "T_FUNCTION",
-#if 0
-    "T_CONST",
-#endif
     "T_STRUCT",
+    "T_PV",
 }
 #endif
 ;

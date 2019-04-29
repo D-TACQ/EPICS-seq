@@ -25,15 +25,20 @@ TESTSCRIPTS_HOST += snc_test.t
 # test programs that should build w/o warnings or errors,
 # not even from the C compiler
 TESTPROD_HOST += cppComment
+TESTPROD_HOST += efInit
+TESTPROD_HOST += efStruct
 TESTPROD_HOST += exOpt_DuplOpt
+TESTPROD_HOST += def_param
 TESTPROD_HOST += funcdef
 TESTPROD_HOST += include_windows_h
 TESTPROD_HOST += member
 TESTPROD_HOST += namingConflict
+TESTPROD_HOST += pv_init_expr
 TESTPROD_HOST += subscript
 TESTPROD_HOST += sync_not_monitored
 TESTPROD_HOST += syncq_not_monitored
 TESTPROD_HOST += type_expr
+#TESTPROD_HOST += include_prelude
 
 PROD_LIBS += seq pv
 PROD_LIBS += $(EPICS_BASE_IOC_LIBS)

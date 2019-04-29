@@ -12,7 +12,7 @@ test_DEPEND_DIRS = src
 DIRS += examples
 examples_DEPEND_DIRS = src
 
-BRANCH = 2-2
+BRANCH = 2-3
 DEFAULT_REPO = /opt/repositories/controls/darcs/epics/support/seq/branch-$(BRANCH)
 GIT_MIRROR = /opt/repositories/controls/git/seq/branch-$(BRANCH)
 SEQ_PATH = www/control/SoftDist/sequencer-$(BRANCH)
@@ -65,7 +65,7 @@ release: upload_docs upload_repo
 	$(RM) seq-$(SEQ_RELEASE).tar.gz
 
 changelog: force
-	DARCS_ALWAYS_COLOR=0 darcs changes -a --from-tag=. | egrep -v '^(Author|Date|patch)' > changelog
+	DARCS_ALWAYS_COLOR=0 darcs changes -a --from-tag=. | egrep -v '^(Author|Date|patch)' | sed 's/^  \*/*/' > changelog
 
 force:
 

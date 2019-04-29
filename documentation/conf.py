@@ -48,7 +48,7 @@ master_doc = 'index'
 project = u'seq'
 copyright = u"""
 2000, William Lupton, W. M. Keck Observatory, Kamuela, HI 96743, USA;
-2010-2013, Benjamin Franksen, Helmholtz-Zentrum Berlin für Materialien und Energie GmbH
+2010-2015, Benjamin Franksen, Helmholtz-Zentrum Berlin für Materialien und Energie GmbH
 """
 
 # The version info for the project you're documenting, acts as replacement for
@@ -187,12 +187,6 @@ html_show_sourcelink = False
 
 # -- Options for LaTeX output --------------------------------------------------
 
-# The paper size ('letter' or 'a4').
-latex_paper_size = 'a4'
-
-# The font size ('10pt', '11pt' or '12pt').
-#latex_font_size = '10pt'
-
 latex_authors = u"""
 William Lupton (wlupton$@$keck.hawaii.edu)\\\\*
 Benjamin Franksen (benjamin.franksen$@$helmholtz-berlin.de)
@@ -204,20 +198,3 @@ latex_documents = [
   ('Manual', 'Manual.tex', 'State Notation Language and Sequencer Users\' Guide',
     latex_authors, 'manual'),
 ]
-
-# The name of an image file (relative to this directory) to place at the top of
-# the title page.
-#latex_logo = None
-
-# For "manual" documents, if this is true, then toplevel headings are parts,
-# not chapters.
-#latex_use_parts = False
-
-# Additional stuff for the LaTeX preamble.
-#latex_preamble = ''
-
-# Documents to append as an appendix to all manuals.
-#latex_appendices = []
-
-# If false, no module index is generated.
-#latex_use_modindex = True

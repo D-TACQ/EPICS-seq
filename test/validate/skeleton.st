@@ -1,5 +1,7 @@
 program xxxTest
 
+option +s;
+
 %%#include "../testSupport.h"
 
 entry {

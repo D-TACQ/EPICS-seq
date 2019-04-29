@@ -51,10 +51,9 @@ epicsShareFunc void epicsShareAPI seqShow(epicsThreadId tid)
 	printf("  number of channels assigned = %d\n", sp->assignCount);
 	printf("  number of channels connected = %d\n", sp->connectCount);
 	printf("  number of channels monitored = %d\n", sp->monitorCount);
-	printf("  options: async=%d, debug=%d, newef=%d, reent=%d, conn=%d\n",
+	printf("  options: async=%d, debug=%d, reent=%d, conn=%d\n",
 		optTest(sp, OPT_ASYNC), optTest(sp, OPT_DEBUG),
-		optTest(sp, OPT_NEWEF), optTest(sp, OPT_REENT),
-		optTest(sp, OPT_CONN));
+		optTest(sp, OPT_REENT), optTest(sp, OPT_CONN));
 	if (optTest(sp, OPT_REENT))
 		printf("  user variables: address = %p, length = %u\n",
 			sp->var, (unsigned)sp->varSize);
@@ -95,14 +94,14 @@ epicsShareFunc void epicsShareAPI seqShow(epicsThreadId tid)
 
 		printf("  Get in progress = [");
 		for (n = 0; n < sp->numChans; n++)
-			if (optTest(sp, OPT_SAFE) || seq_pvAssigned(ss, n))
-				printf("%d",!seq_pvGetComplete(ss, n));
+			if (optTest(sp, OPT_SAFE) || seq_pvAssigned(ss, sp->chan + n))
+				printf("%d",!seq_pvGetComplete(ss, sp->chan + n));
 		printf("]\n");
 
 		printf("  Put in progress = [");
 		for (n = 0; n < sp->numChans; n++)
-			if (optTest(sp, OPT_SAFE) || seq_pvAssigned(ss, n))
-				printf("%d",!seq_pvPutComplete(ss, n, 1, 0, 0));
+			if (optTest(sp, OPT_SAFE) || seq_pvAssigned(ss, sp->chan + n))
+				printf("%d",!seq_pvPutComplete(ss, sp->chan + n, 1, 0, 0));
 		printf("]\n");
 
 		if (optTest(sp, OPT_SAFE))
@@ -148,6 +147,7 @@ epicsShareFunc void epicsShareAPI seqChanShow(epicsThreadId tid, const char *str
 	{
 		CHAN *ch = sp->chan + nch;
 		DBCHAN *dbch = ch->dbch;
+		unsigned nss;
 
 		if (str != NULL)
 		{
@@ -186,13 +186,17 @@ epicsShareFunc void epicsShareAPI seqChanShow(epicsThreadId tid, const char *str
 		else
 			printf("  Not connected\n");
 
-		if (ch->monitored)
-			printf("  Monitored\n");
-		else
-			printf("  Not monitored\n");
+		printf("  Monitored in: ");
+		for (nss = 0; nss < sp->numSS; nss++)
+		{
+			SSCB *ss = sp->ss + nss;
+			if (ss->monitored[chNum(ch)])
+				printf("%s%s", nss? ", " : "[", ss->ssName);
+		}
+		printf("]\n");
 
 		if (ch->syncedTo)
-			printf("  Sync'ed to event flag %u\n", ch->syncedTo);
+			printf("  Sync'ed to event flag %u\n", (unsigned)(ch->syncedTo - sp->eventFlags));
 		else
 			printf("  Not sync'ed\n");
 

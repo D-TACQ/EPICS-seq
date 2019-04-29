@@ -8,8 +8,8 @@ PAPER         = a4
 BUILDDIR      = O.Common
 
 # Internal variables.
-PAPEROPT_a4     = -D latex_paper_size=a4
-PAPEROPT_letter = -D latex_paper_size=letter
+PAPEROPT_a4     = -D latex_elements.papersize=a4
+PAPEROPT_letter = -D latex_elements.papersize=letter
 ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
 .PHONY: install all build realclean
@@ -49,7 +49,7 @@ runtests:
 checksyntax: html extractbnf.pl Reference.txt $(INSTALL_LOCATION)/html/Syntax.txt
 	sort $(INSTALL_LOCATION)/html/Syntax.txt > $(BUILDDIR)/Syntax.txt.sorted.tmp
 	$(MV) $(BUILDDIR)/Syntax.txt.sorted.tmp $(BUILDDIR)/Syntax.txt.sorted
-	$(PERL) extractbnf.pl Reference.txt | sort > $(BUILDDIR)/Reference.txt.sorted.tmp
+	$(PERL) extractbnf.pl Reference.txt | sort -u > $(BUILDDIR)/Reference.txt.sorted.tmp
 	$(MV) $(BUILDDIR)/Reference.txt.sorted.tmp $(BUILDDIR)/Reference.txt.sorted
 	if ! diff $(BUILDDIR)/Syntax.txt.sorted $(BUILDDIR)/Reference.txt.sorted; then\
 		echo "warning: syntax is inconsistent with specification"; fi

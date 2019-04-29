@@ -5,19 +5,11 @@ option +r;
 int x;
 assign x;
 
-void *f1(void)
-{
-    pvPut(x);
-    return 0;
-}
-
-void *f1a()
-{
-    return 0;
-}
-
+#if 0
+/* forward declarations no longer allowed in version 2.3 */
 /* forward declarations (not needed but allowed) */
 void pvSetX(int val);
+#endif
 
 ss simple {
     state simple {
@@ -27,6 +19,17 @@ ss simple {
             pvSetX(1.0);
         } exit
     }
+}
+
+void *f1(void)
+{
+    pvPut(x);
+    return 0;
+}
+
+void *f1a()
+{
+    return 0;
 }
 
 void *f2(void *x, double **d)
