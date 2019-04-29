@@ -19,7 +19,7 @@ For further information
   introduction to SNL, including a walk through a simple example program to
   illustrate the basic concepts.
 
-* A (slightly out-dated) `Tutorial` is also available,
+* A `Tutorial` is also available,
 
 * as well as a detailed `Reference`,
 
@@ -27,9 +27,11 @@ For further information
 
 * All of these are part of the `Manual`.
 
-This page describes version 2.2 and the documentation, in particular the
-language reference, has been updated to reflect the `changes between 2.1 and
-2.2 <Release_Notes_2.2.1>`. For older versions, please refer to `the old version of this page`_.
+The information you find here describes version 2.3 of the sequencer.
+The documentation, in particular the
+language reference, has been updated to reflect the `changes between 2.2 and
+2.3 <Release_Notes_2.3.0.1>`. For older versions, please refer to
+`version 2.2`_ or `version 2.1`_.
 
 .. _domain specific programming language: http://en.wikipedia.org/wiki/Domain-specific_programming_language
 .. _EPICS: http://www.aps.anl.gov/epics/
@@ -37,4 +39,5 @@ language reference, has been updated to reflect the `changes between 2.1 and
 .. _talk about version 2.1 of the Sequencer: http://www-csr.bessy.de/control/SoftDist/sequencer/talks/epics-meeting-2011-PSI/sequencer-2-1-slides.pdf
 .. _free software: http://www.gnu.org/philosophy/free-sw.html
 .. _EPICS Open License: http://www.aps.anl.gov/epics/license/open.php
-.. _the old version of this page: http://www-csr.bessy.de/control/SoftDist/sequencer-2-1/index.html
+.. _version 2.1: http://www-csr.bessy.de/control/SoftDist/sequencer-2-1/index.html
+.. _version 2.2: http://www-csr.bessy.de/control/SoftDist/sequencer-2-2/index.html

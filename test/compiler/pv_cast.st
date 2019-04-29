@@ -4,23 +4,17 @@ Copyright (c) 2010-2015 Helmholtz-Zentrum Berlin f. Materialien
 This file is distributed subject to a Software License Agreement found
 in the file LICENSE that is included with this distribution.
 \*************************************************************************/
-program scope
+program pv_cast
 
-int i, j;
-evflag f, g, h;
+option +r;
 
-ss start {
-    assign i;
-    monitor i;
-    sync i to f;
-    syncq i to f;
-    int k;
-    state first {
-        assign j;
-        monitor j;
-        sync j to g;
-        syncq k to h;
-        when () {
-        } exit
-    }
+int i;
+float pv fch;
+int pv ich;
+
+entry {
+    fch = (float pv)ich;
+    ich = (int pv)i;
 }
+
+#include "../simple.st"

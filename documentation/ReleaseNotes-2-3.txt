@@ -1,0 +1,210 @@
+Release Notes for Version 2.3
+=============================
+
+.. _Release_Notes_2.3.0.1:
+
+Release 2.3.0.1
+---------------
+
+This is a preliminary first (pre-)release on the version 2.3 branch. Its
+main purpose is to give a first impression of some of the new features you
+can expect in version 2.3.
+
+First Class Channels and Event Flags
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Channel variables and event flags are now first class objects:
+
+* may be passed as arguments to and returned from (user defined and
+  built-in) functions
+
+* can be declared as struct members
+
+* support the address-of operator ("&")
+
+As in all previous versions of the sequencer, there is no syntactic
+distinction in expressions between a channel and its value. It depends on
+the context, specifically on the expected type of an expression, whether it
+denotes a channel or a value.
+
+PV Type Constructor and Initializer
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SNL now makes a type distinction between normal variables and channel
+variables, using the new keyword "pv". In type expressions, "pv" acts like a
+prefix type constructor, such as the "*" in C and the "&" in C++. Here is an
+example::
+
+  int *p;
+  int pv x;
+
+Just as prefix "*" means "pointer", prefix "pv" means "channel" i.e.
+"assigned variable". As usual in C and SNL, type expressions have to be read
+inside out, starting with the declared variable; in this case: p is a
+pointer to an int, and x is a pv of value type int.
+
+SNL now also makes a small addition to the normal C initializer syntax, in
+order to replace the usual assign, monitor, sync, and syncq clauses (which
+are still supported) with a single initializer expression.
+
+For anonymous channels, the declaration with a pv type suffices: no separate
+"assign" clause is necessary. For named channels, we overload the variable
+initialization syntax::
+
+  int pv x = pv "{DEV}:stat1";
+
+Where the "pv" keyword on the right of the "=" indicates that the
+initializer is not meant to initialize the value but the channel.
+
+This declaration is equivalent to the old (and still supported) notation::
+
+  int x;
+  assign x to "{DEV}:stat1";
+
+The "pv" type constructor and the "pv" initializer can both appear nested
+inside more complicated expressions. For instance, ::
+
+  double (pv x)[5];
+
+declares variable ``x`` as having type "pv of array of 5 doubles". Note the
+parentheses to bind the "pv" tighter to x than the array brackets (which
+would otherwise have higher precedence like all postfix operators). Leaving
+the parentheses off, as in::
+
+  double pv x[5];
+
+means x has type "array of 5 pv of double".
+
+Structs can have members of pv type, too::
+
+  struct mixing_pv_and_plain_in_struct {
+    int plain_int;
+    int pv pv_of_int;
+    double pv array_of_3_pv_of_double[3];
+  };
+
+When declaring a variable of this type, you may interleave normal value
+initialization with pv initialization, as in ::
+
+  struct mixing_pv_and_plain_in_struct contrived = {
+    42,
+    pv "{DEV}:stat",
+    pv { "{DEV}:readback1", "{DEV}:readback2", "{DEV}:readback3" }
+  };
+
+
+Passing Channels to User Defined Functions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+It is now possible to write functions in SNL with all the features that were
+previously possible only for built-in functions. In particular, channels (as
+well as event flags) can now be passed as parameters to, and returned from,
+user defined functions. This was the main motivation behind the addition of
+the "pv" type constructor. Here is an example::
+
+  int all_at_home(double *home_pos, double pv *pos, int num_elems) {
+    int i;
+    for (i=0; i < num_elems; i++) {
+      if (abs(pos[i] - home_pos[i]) < epsilon)
+        return 0;
+    }
+    return 1;
+  }
+
+This function can be used in a when-condition::
+
+  int pv axes[4]; /* 4 scalar channels combined into an array */
+
+  when (all_at_home(axes,4)) { ... }
+
+The condition fires whenever /all/ 4 axes are sufficiently near to their
+home positions.
+
+Function parameters declared with a "pv" type can in turn be passed to
+built-in functions that expect a channel (or an array of channels), such as
+pvGet and pvPut. 
+
+All built-in functions now have a type that can be expressed in SNL. The
+code generated for a call to a built-in function is exactly the same as for
+a call to a user defined function of the same type. Polymorphism with
+respect to the underlying value type (int, float, etc) is achieved by using
+'void pv' in the declaration of the channel argument. User define functions
+can use the same trick, but note that this means the function cannot access
+the value, only the channel. Also note that type cast involving pv types are
+explicitly disallowed.
+
+A minor incompatibility resulting from these changes is that the num_elems
+argument to pvXxxArray functions is no longer optional.
+
+
+Wait Statements
+^^^^^^^^^^^^^^^
+
+The new "wait" statement allows to wait for events in action code and user
+defined functions, similar in syntax and semantics to the state transitions
+inside a state. This allows a more structured way to program control flows
+and also allows a limited form of nesting for state sets.
+
+The idea is to separate the notion of "wait for a set of events by stating
+certain conditions and what to do when they are fulfilled" from the
+state-machine-oriented control flow a la "next state is xxx". The wait
+statement offers the former, but not the latter, and since it is a
+statement, it can be used in action code, embedded in the normal C-like
+control flow. It can also appear inside user defined functions.
+
+The syntax is, roughly::
+
+  wait {
+    when (<condition>) {
+      <actions>
+    }
+    when (<condition>) {
+      <actions>
+    }
+    ...etc...
+  }
+
+In contrast to states there is no "new state" after the action blocks;
+instead control flow continues with the next statement after the wait. See
+the `reference section <wait statement>` for a simple example.
+
+State set local monitors for global channels
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  
+A monitor clause for a global channel inside a state set is now allowed and
+causes the variable (or rather: memory location) to be updated only for the
+state set in which the monitor clause appears (unless there is also a global
+monitor clause or a pv initializer with monitor flag, in which case it has
+no effect).
+
+Removed state-local assign, monitor, sync, and syncq inside
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Assign, monitor, sync, and syncq clauses inside states have been eliminated
+from the syntax. Introducing them was a bad idea and they have been
+deprecated since version 2.2.
+
+Channel Re-assign Suspends Other State Sets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Testing revealed that the pvAssign built-in function was still largely
+unsafe, due to race conditions with other built-in functions.
+
+One way to solve this problem would be to lock the channel objects for
+(almost) every pvXxx function. The problem with that approach is that every
+program must pay for a feature used by only a few. (It also means lots of
+tedious changes in all pv functions, taking care to avoid deadlocks etc.pp.)
+
+Instead, I opted to shift the cost almost completely to the pvAssign call:
+it now has to wait until all other state sets are at a safe point, where
+they are held until the re-assign (though not necessarily a re-connect) is
+complete.
+
+Final Note
+^^^^^^^^^^
+
+Embedding literal C code, while still supported for compatibility, is really
+no longer necessary, except for #include of header files; all other uses
+should be avoided. If you have a program where you think you still need it:
+drop me a note and I will tell you how to achieve the same result within SNL
+proper.

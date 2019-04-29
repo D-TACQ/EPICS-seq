@@ -1,114 +1,282 @@
 Plans for the Future
 ====================
 
-This is just a simple bullet list of things that are on my (long term) TODO
-list. Comments are welcome, as usual.
+Things that are on my (long to medium term) TODO list.
 
-* Check whether it makes sense to let users specify the communication
-  (request) type. This is currently baked-in to be inferred from the
-  variable's type as specified in the program text. 
-  Another twist would be to allow to use the native type and convert
-  on the seq side. The question is if this
-  brings any actual benefit, considering that sequencer and database
-  typically run on the same IOC. It might be convenient, sometimes.
+Comments are highly welcome. I *do* want to know what people like or what
+they can think of as a useful addition.
 
-* Add "pv" as a prefix type constructor. This is now implemented in my
-  working branch for version 2.3. Sketch::
 
-    int pv x = 0;                         /* single anonymous scalar pv */
-    int pv x = pv "name";                 /* single named scalar pv */
-    int (pv x)[2] = {1,2};                /* single anonymous array valued pv */
-    int (pv x)[2] = pv "name";            /* single named array valued pv */
-    int pv x[2];                          /* array of 2 anonymous scalar pvs */
-    int pv x[2] = pv {"n1", "n2"};        /* array of 2 named scalar pvs */
-    int (pv x[2])[100];                   /* array of 2 anonymous array valued pvs */
-    int (pv x[2])[100] = pv {"n1", "n2"}; /* array of 2 named array valued pvs */
+Interaction with PVs
+--------------------
 
-  This now also works for structs whose members can be of pv type etc.
+User Specified Request Types
+++++++++++++++++++++++++++++
 
-* Raw ideas:
+The CA request type is currently baked-in to be inferred from the variable's
+type as specified in the program text.  Another twist would be to allow to
+use the native type and convert on the seq side. The question is if this
+brings any actual benefit, considering that sequencer and database typically
+run on the same IOC. It might be convenient, sometimes.
 
-  - Allow parameterized state sets (like a function). Then allow to "jump"
-    from one state set to another one. The "caller" i.e. the original state
-    set must wait for the "callee" to finish. The idea here is to avoid
-    dynamic creation of threads, as this could be implemented as a simple
-    procedure call. Needs more thought.
 
-  - Better support for enumerations i.e. PVs with native request type DBR_ENUM.
-    The idea is that the programmer can use identifiers to name the choices,
-    but does not have to know in advance which integer value corresponds
-    to which choice.
+Enumerations
+++++++++++++
 
-    Maybe something very simple suffices, like a built-in function ::
+This is about PVs with native request type DBR_ENUM.
+The idea is that the programmer can use identifiers to name the choices,
+but does not have to know in advance which integer value corresponds
+to which choice.
 
-      int pvChoice(var, char *choice_name);
+Maybe something very simple suffices, like a built-in function ::
 
-    This requires support for DBR_GR_ENUM in the pv layer.
+  int pvChoice(void pv channel, char *choice_name);
 
-  - Better syntax for assign, monitor, sync, etc. The idea is to provide an
-    alternative to the usual macros. Every SNL programmer uses her own
-    self-made macros to simplify declaration blocks like ::
+This requires support for DBR_GR_ENUM in the pv layer. Should fail for
+non-enum channels (need to find out the native type for that) and of
+course also if the string is not in the set of enum strings for the
+channel.
 
-      int x;
-      assign x to "bla";
-      monitor x;
-      sync x to ef_x;
+Can we use static database access to get at all the menu definitions at
+least? What if the PVs are remote?
 
-    The challenge here is to come up with something that is light-weight,
-    can be easily specialized, and seamlessly fits into the existing syntax.
-    
-    My current favorite candidate is to extend the pv initialization syntax.
-    The idea is that a pv init expression (i.e. an initializer prefixed with
-    the "pv" keyword) can get extra arguments with defaults::
-    
-      int pv x = pv "name";             /* just assigned to "name" */
-      int pv x = pv ("name");           /* same */
-      int pv x = pv ("name", 1);        /* also monitor */
-      int pv x = pv ("name", 1, ef);    /* also sync to ef */
-      int pv x = pv ("name", 0, ef);    /* no monitor, but sync to ef */
-      int pv x = pv ("name", 1, 0, 20); /* monitor, no sync, queued (size 20) */
-      int pv x[2] = pv ({"n1", "n2"},1);/* both pvs are monitored */
-      struct two {
-        int pv x;
-        int pv ys[2];
-      };
-      struct two s = pv {"n1", {"n2", "n3"}}; /* no monitors */
-      struct two s = pv {("n1",1), ({"n2", "n3"}, 1, ef)}; /* x monitored, ys also synced */
-      etc...
 
-    The "pv" outside of an aggregate "{ ... }" should be the same as
-    prefixing all elements with it. Aggregates in a pv argument position
-    are allowed only for the pv name and mean expand all elements with the
-    other arguments.
+Revise How Connect/Disconnect Events are Handled
+++++++++++++++++++++++++++++++++++++++++++++++++
 
-* Convert everything under test to use epicsUnitTest. Add more regression tests.
+Taking appropriate action when such an event happens is currently an error
+prone affair. The pvConnectCount function and its relatives are usable but
+not very elegant, especially when you have more than one state set. 
 
-* Need to go over the introductory chapters in the docs, remove out-dated
-  information. Partly done.
+One could start with something simple, like keeping all state sets on hold
+as long as any of the channels are disconnected, just like during startup
+with option +c in effect. This would play well with the recently changed
+implementation of pvAssign, which already keeps statesets in a suspended
+state during re-assign (though not during re-connect). Variants include
+special action blocks to be executed when connections come up or are lost.
+The general idea should be to make this reliable and easy to use and yet
+cover the majority of requirements.
 
-* Götz suggested to allow the monitor clause inside a state set, even if
-  the variable is global. This would mean automatic variable updates affect
-  only those state sets which contain the monitor clause, while others do
-  not get updates. (Perhaps: combine this with state set local event flags
-  and sync clauses.)
+Obviously this would need an explicit option to enable it.
 
-  This could be useful in situations where one state set writes to the variable
-  and others only read. The writer would not monitor, thus would not fall
-  victim to the modify but not publish fallacy.
 
-  Experimental implementation in version 2.3 branch done. State local
-  assign, monitor, etc got in the way, which is why I removed them in 2.3
-  (deprecated in 2.2). They aren't too useful anyway.
+SNL Language Extensions
+-----------------------
 
-* Add some sort of built-in macro language. Something that nicely integrates
-  with the existing SNL syntax would be nice, e.g. ::
+Built-in Macro Language
++++++++++++++++++++++++
 
-    define macro (arg, ...) {
-      definition
+This also falls under the general plan to get rid of CPP. Also might be a
+way to re-structure the language into a core plus extensible syntax sugar.
+
+Should be something that nicely integrates with the existing SNL syntax,
+e.g. ::
+
+  define macro (arg, ...) {
+    definition
+  }
+  include "headerfile";
+
+Use of CPP could then be deprecated. What about token catenation and
+stringification as in CPP?
+
+A partial implementation has been in the works for a while but is now
+stalled due to confusion about type checking at the two stages (before and
+after macro expansion). Will take this up at some later time.
+
+Update: I am now thinking that it may be better to extend the language
+along more conventional lines. except perhaps the following point.
+
+Syntax for include of C header files
+++++++++++++++++++++++++++++++++++++
+
+A syntax extension that allows to include C header files in the
+generated code, perhaps removing the last remaining situation where
+embedding literal C code is still necessary.
+
+Modules
++++++++
+
+It would be nice to have *some* sort of modularization so users can share
+their abstractions. Nothing more concrete yet.
+
+Default transitions
++++++++++++++++++++
+
+For instance, it would be nice to be able to cleanly
+abort a sequence of state transitions under certain conditions (e.g. user
+hits stop button, or something fails unexpectedly). Things like that are
+often done using cpp macros to reduce the amount of boilerplate. We can do
+better than that by eliminating the boilerplate alltogether. Example::
+
+  ss something_with_many_states {
+    default { // can appear anywhere a state can
+      when (condition1) {
+        do_something_eg_cleanup();
+      } state safe_state
+      when (condition2) {
+        print_error();
+      } exit
     }
-    include "headerfile";
+    // states here...
+  }
 
-  Use of CPP could then be deprecated. What about token catenation and
-  stringification as in CPP?
+Could be implemented as simple syntax sugar, adding the default when
+clauses for all states. Might want to add a state option to disable
+default transitions.
 
-  Implementation would have to be an intermediate step between lexing and parsing.
+Parameterized and/or Nested State Sets
+++++++++++++++++++++++++++++++++++++++
+
+We now have proper SNL functions, which means that we *can* parameterize
+things. All that is needed is to lift state sets to the statement level,
+then you just write a function that contains a state set in its action
+block. And since there is now the wait statement, the state set statement
+could be defined simply as syntax sugar. Here is the idea:
+
+A state set statement like ::
+
+  ss { // note: no stateset name here
+    state x {
+      entry { x_entry }
+      when (x_cond_1) { x_trans_1 } state y
+      ...
+      exit { x_exit }
+    }
+    state y {
+      ...
+    }
+    ...
+  }
+
+desugars (more or less) to ::
+
+  {
+    int seqg_next_state = 0;
+    while(TRUE) {
+      if (seqg_next_state == 0) { // state x
+        { x_entry }
+        wait {
+          when (x_cond_1) {
+            x_trans_1
+            seqg_next_state = 1; // goto state y
+          }
+          ...
+        }
+        { x_exit }
+      }
+      if (seqg_next_state == 1) { // state y
+        ...
+        break;
+      }
+      ...
+    }
+  }
+
+This does not yet cover subtleties like state options (for -e and -x we
+need to know the target and the source state) but these things can be
+easily added to the picture. We also need a way to terminate a state set.
+An existing keyword can be overloaded for that e.g. "break", which is
+disallowed directly inside a wait statement (and inside a state, too, even
+though I think this is not checked ATM).
+
+Mostly implemented now.
+
+Refactor top-level State Sets
++++++++++++++++++++++++++++++
+
+Given a working state set statement that covers all the features we
+expect, we can go the next step and translate top-level state sets to
+(null-ary) functions that contain (just) such a state set statement in its
+body, thus unifying the two notions.
+
+Spawn Directive
++++++++++++++++
+
+Introduction of the state set statement achieves a separation of
+concerns: state sets currently combine the two notions of *thread*
+(including, in safe mode, transactional behaviour of action blocks w.r.t
+channel variables) and *control structure*. The latter gets factored
+into the state set statement. It is now tempting to offer a separate
+abstraction for the former, too, that is, add some sort of "spawn"
+command. Unfortunately this is frought with hazards: dynamic creation of
+threads would invalidate many assumptions in both compiler and runtime
+library.
+
+These difficulties could be avoided by downgrading the "spawn" directive
+from a statement to a *declaration*. If restricted to the top-level, there
+would still be a fixed number of threads per program. The question is then
+whether this is useful enough to warrant the added complexity. One use
+case would be programs that are not meant to run endlessly, but just
+perform some initialization and then terminate. It would make sense to
+allow such a program to be formulated with a function that contains a
+sequence or loop of wait statements and a single directive to spawn that
+function.
+
+State Variables aka First Class Staterefs
++++++++++++++++++++++++++++++++++++++++++
+
+The full potential of nested statesets is realized once we can refer to
+states of a parent stateset inside a child (nested) stateset: we want to
+be able to calculate the new state that a parent will change into (once
+the child stateset is done with its work). Of course this can already be
+done by using numbers (or enums) to *represent* states. Given the low-level
+C-like nature of SNL perhaps this is fitting.
+
+Anyway, directly referring to states would be more concise and elegant.
+Questions regarding design:
+
+* Which operations do we support? Off the top of my head: no more than
+  equality testing and assignment. And of course the state change command
+  and the usual next-state spec would both be able to refer to *state
+  variables*, where now only *state literals* are allowed.
+
+* States belonging to different statesets should be incompatible. Do we
+  need/want a type discipline to enforce that? If yes, do we need the
+  complete (monomorphic) type at declaration site (as for other variables)
+  or can we support polymorphism and/or type inference? 
+
+* Internal representation depends on how we answer the previous question:
+  statically typed means a state number is sufficient; dynamically typed
+  means we also need to know at runtime what state set the state belongs to.
+
+* Do we need a notation to disambiguate a state using the name of the state
+  set it belongs to? How would that play with the (currently) anonymous
+  stateset statements? Probably enough to allow naming them (optionally).
+  OTOH, perhaps statically scoping states would suffice.
+
+* A more technical question is how to manage the separate name spaces in the
+  compiler (for compatibility it is important to retain the separation). One
+  simple solution is mangling. Perhaps can do it similar to how we handle
+  state set vs. global variables (via nested structs).
+
+In any case, such a change requires *serious* refactoring in the compiler. 
+
+
+Meta Stuff
+----------
+
+Better Tutorial
++++++++++++++++
+
+Need to go over the introductory chapters in the docs, remove out-dated
+information. Partly done.
+
+
+C++ as Target Langugage
++++++++++++++++++++++++
+
+This has been on my mind for a long
+time. (Note, "target language" here means the code that is generated. I do
+*not* plan to support C++ syntax in SNL proper. That would be impossible
+for a one-man project, as C++ is *much* more complicated than C.)
+
+Generateing C++ code could simplify a lot of things. For instance,
+automatic de-initialization of objects when they go out of scope; very
+handy for things like the wait statement, where we currently have to be
+careful to avoid user actions that might break out of the (generated)
+loop. One could also turn channel variables into object references and use
+templates to parameterize channels over their base type. It might even be
+possible to support EPICS V4 via pvAccess.
+
+This is currently pretty far out, i.e. nothing but raw ideas.

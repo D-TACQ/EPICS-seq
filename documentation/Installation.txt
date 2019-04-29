@@ -8,41 +8,26 @@ and contribute patches.
 Prerequisites
 -------------
 
-EPICS base
-^^^^^^^^^^
-
 You need to have `EPICS base`_ and its dependencies (`GNU make`_, `Perl`_)
 installed. Any version of EPICS base starting with 3.14.12.2 and up to 3.15
 should do. Starting with seq-`2.2.6`_, EPICS base versions up to 7.0.1 can be
 used.
 
-.. _EPICS base: http://www.aps.anl.gov/epics/base/
-.. _GNU make: http://www.gnu.org/software/make/
-.. _Perl: http://www.perl.org/
-
-re2c
-^^^^
-
 Building the sequencer also requires the lexer generator tool `re2c`_. The
 minimum version required is 0.9.9, but I recommend using the latest version
 that is avaliable for your system. If you are building on a Linux system,
-you can use the re2c package your distribution provides.
+you will probably want to use the re2c package your distribution provides,
+otherwise sources available from the `re2c download`_ page. The `old re2c
+download`_ page on sourceforge also contains pre-built binaries for Windows
+systems.
 
-On Windows things are not quite as smooth. The `old re2c download`_ page on
-sourceforge contains pre-built binaries for Windows systems, albeit only up
-to version 0.13.5. If this doesn't work for you, there is `EPICS-re2c`_, a
-version of re2c that has been wrapped as an EPICS module. There is also a
-Windows build of `re2c-1.0.3 on Appveyor`_.
-
-In any case, if the re2c executable is not installed in a directory listed
-in your PATH environment variable, you should change the definition of RE2C
-in configure/CONFIG_SITE to the full path name of the re2c executable before
-building the sequencer, see `Configure and Build` below.
-
+.. _EPICS base: http://www.aps.anl.gov/epics/base/
+.. _GNU make: http://www.gnu.org/software/make/
+.. _Perl: http://www.perl.org/
 .. _re2c: http://re2c.org/
+.. _re2c download: http://re2c.org/install/install.html
 .. _old re2c download: http://sourceforge.net/projects/re2c/files/old/
-.. _EPICS-re2c: https://github.com/FreddieAkeroyd/EPICS-re2c
-.. _re2c-1.0.3 on Appveyor: https://ci.appveyor.com/project/FreddieAkeroyd/re2c/build/artifacts
+
 
 Download
 --------
@@ -51,15 +36,14 @@ Releases are available here:
 
    http://www-csr.bessy.de/control/SoftDist/sequencer/releases/
 
-The current stable release is `2.2.5`_. Please take a look at the
+The current stable release is `2.2.1`_. Please take a look at the
 `VersioningPolicy` if you are unsure whether to upgrade to
 a new release.
 
-.. note::
+.. warning::
 
   The documentation and download links you will find on this page are for
-  version 2.2. The `documentation for version 2.1`_ is still there and will
-  be maintained at least until version 2.3 is released.
+  version 2.2. For older version, see the `documentation for version 2.1`_.
 
 Development snapshots are available under the name
 
@@ -75,40 +59,36 @@ Here are all releases for version 2.2:
    ========== =========================== ============================
    Version    Release Notes               Known Problems
    ========== =========================== ============================
-   `2.2.6`_   `Release_Notes_2.2.6`       n/a
-   `2.2.5`_   `Release_Notes_2.2.5`       `Known_Problems_2.2.5`
-   `2.2.4`_   `Release_Notes_2.2.4`       `Known_Problems_2.2.4`
-   `2.2.3`_   `Release_Notes_2.2.3`       `Known_Problems_2.2.3`
-   `2.2.2`_   `Release_Notes_2.2.2`       `Known_Problems_2.2.2`
    `2.2.1`_   `Release_Notes_2.2.1`       `Known_Problems_2.2.1`
    ========== =========================== ============================
 
-If you want to help testing, please use the `latest snapshot`_, or check out
-the `darcs`_ repository for `branch-2-2`_::
+If you want to help testing, please use
+the `latest snapshot`_, or check out the `darcs`_ repository::
 
-   darcs get http://www-csr.bessy.de/control/SoftDist/sequencer/repo/branch-2-2
+   darcs get http://www-csr.bessy.de/control/SoftDist/sequencer/repo/<branch>
 
-Since release 2.2.2 there is also a git mirror, so you can as well ::
+where ``<branch>`` is the branch name. There are currently three branches:
 
-   git clone http://www-csr.bessy.de/control/SoftDist/sequencer/repo/branch-2-2.git
+* `branch-2-0`_ is an old version. This branch has been frozen since 2011
+  and will receive no more patches, nor will there be any new releases.
 
-but please note that this is just a mirror, no more: I cannot accept git
-patches (or whatever they are called in git); it may also happen that I have
-to re-create the whole git repo from scratch (because incremental conversion
-sometimes fails).
+* `branch-2-1`_ is the previous version. No further development will happen
+  here. I may make further bug-fix releases for people who don't want to
+  upgrade to version 2.2 yet.
 
-Development of new features now happens on `branch-2-3`_.
+* `branch-2-2`_ is the current "stable" version. New features might still be
+  added here if they can be implemented in a fully compatible manner, but
+  the focus is on stability.
 
-See `Contribute`_ for a short description how to record and send patches.
+* `branch-2-3`_ is where new features are developed that will appear in
+  version 2.3. There are no releases yet.
+
+See `Contribute`_ for a short description how to record and send
+patches.
 
 You can also follow development by using the `repository browser`_.
 
 .. _latest snapshot: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2-2-snapshot-latest.tar.gz
-.. _2.2.6: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2.2.6.tar.gz
-.. _2.2.5: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2.2.5.tar.gz
-.. _2.2.4: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2.2.4.tar.gz
-.. _2.2.3: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2.2.3.tar.gz
-.. _2.2.2: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2.2.2.tar.gz
 .. _2.2.1: http://www-csr.bessy.de/control/SoftDist/sequencer/releases/seq-2.2.1.tar.gz
 .. _repository browser: http://www-csr.bessy.de/cgi-bin/darcsweb.cgi
 .. _branch-2-0: http://www-csr.bessy.de/cgi-bin/darcsweb.cgi?r=seq%20branch-2-0;a=summary
@@ -149,8 +129,6 @@ i.e. ``.../seq-x.y.z/``.
 .. _GNU tar: http://www.gnu.org/software/tar/
 .. _reStructuredText: http://docutils.sourceforge.net/rst.html
 
-
-.. _Configure and Build:
 
 Configure and Build
 -------------------
@@ -334,15 +312,9 @@ you are using.
 Contribute
 ----------
 
-I am always happy to receive patches (bug fixes, improvements, whatever).
-For minor changes you don't need to bother with `darcs`_, just send me a
-`patch file`_.
-
-.. _patch file: http://en.wikipedia.org/wiki/Patch_%28Unix%29
-
-For more involved changes you might want to send a `darcs`_ patch. You can
-create a local copy of the `darcs`_ repository (the stable branch in this
-example) by saying::
+I am always happy to receive patches (bug fixes, improvements,
+whatever). You can create a local copy of the `darcs`_
+repository (the stable branch in this example) by saying::
 
    darcs get http://www-csr.bessy.de/control/SoftDist/sequencer/repo/stable
 

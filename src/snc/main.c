@@ -42,8 +42,7 @@ static char *replace_extension(const char *in, const char *ext);
 int main(int argc, char *argv[])
 {
 	FILE	*in;
-	Program	*prg;
-        Node    *exp;
+        Node    *prog;
 
 	/* Get command arguments */
 	parse_args(argc, argv);
@@ -65,12 +64,12 @@ int main(int argc, char *argv[])
            since the lexer maintains its own buffer */
 	setvbuf(in, NULL, _IONBF, 0);
 
-	exp = parse_program(in, input_name);
+	prog = parse_program(in, input_name);
 
-        prg = analyse_program(exp, options);
+        analyse_program(prog, &options);
 
 	if (err_cnt == 0)
-		generate_code(prg);
+		generate_code(prog);
 
 	return err_cnt ? EXIT_FAILURE : EXIT_SUCCESS;
 }
@@ -160,9 +159,6 @@ static void parse_option(char *s)
 		break;
 	case 'd':
 		options.debug = opt_val;
-		break;
-	case 'e':
-		options.newef = opt_val;
 		break;
 	case 'r':
 		options.reent = opt_val;
@@ -255,22 +251,6 @@ void error_at(const char *src_file, int line_num, const char *format, ...)
 	va_end(args);
 }
 
-/* location plus message and report a bug in snc */
-void assert_at(int cond, const char *src_file, int line_num, const char *format, ...)
-{
-	if (!cond)
-	{
-		va_list args;
-
-		report_loc(src_file, line_num);
-		fprintf(stderr, "snc bug (assertion failed): ");
-		va_start(args, format);
-		vfprintf(stderr, format, args);
-		va_end(args);
-		exit(EXIT_FAILURE);
-	}
-}
-
 void report_at_node(Node *ep, const char *format, ...)
 {
 	va_list args;
@@ -319,22 +299,6 @@ void error_at_node(Node *ep, const char *format, ...)
 	va_start(args, format);
 	vfprintf(stderr, format, args);
 	va_end(args);
-}
-
-/* with location from this node and report a bug in snc */
-void assert_at_node(int cond, Node *ep, const char *format, ...)
-{
-	if (!cond)
-	{
-		va_list args;
-
-		report_loc(ep->token.file, ep->token.line);
-		fprintf(stderr, "snc bug (assertion failed): ");
-		va_start(args, format);
-		vfprintf(stderr, format, args);
-		va_end(args);
-		exit(EXIT_FAILURE);
-	}
 }
 
 void report(const char *format, ...)

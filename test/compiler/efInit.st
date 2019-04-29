@@ -4,8 +4,8 @@ Copyright (c) 2010-2015 Helmholtz-Zentrum Berlin f. Materialien
 This file is distributed subject to a Software License Agreement found
 in the file LICENSE that is included with this distribution.
 \*************************************************************************/
-program efPointerTest
+program efInitTest
 
-evflag *efp;    /* error: pointer to event flag */
+evflag ef = 1;
 
-#include "simple.st"
+#include "../simple.st"

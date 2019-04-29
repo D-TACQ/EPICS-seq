@@ -27,14 +27,15 @@ defines the state machine::
     }
   }
 
-At the top level we use the keyword ``ss`` to declare a *state set* (which
-is SNL speak for state machine) named ``volt_check``. Inside the code
-block that follows, we define the *states* of this state set, using the
-``state`` keyword. There are two states here: ``light_off`` and ``light_on``.
-Inside each state, we define conditions under which the program will
-enter another state, indicated by the keyword ``when``. The block
-following the condition contains *action statements* that are executed
-when the condition fires.
+At the top level we use the keyword ``ss`` to declare a *state set* named
+``volt_check``. "State set" is SNL speak for state machine; it really is a
+set of states, since the order in which the states are declared is largely
+irrelevant. Inside the code block that follows, we define the *states* of
+this state set, using the `state` keyword. There are two states here:
+``light_off`` and ``light_on``. Inside each state, we define conditions
+under which the program will enter another state, indicated by the keyword
+``when``. The block following the condition contains *action statements* that
+are executed when the condition fires.
 
 In our example, in state ``light_off``, whenever the voltage exceeds a
 value of 5.0, the light switch is turned on, and the internal state
@@ -83,89 +84,75 @@ condition, but also on the current state. For instance, an input
 the current state matters, too.
 
 As you can see, the SNL code is syntactically very similar to the C
-language. Particularly, the syntax for variable declarations,
-expressions, and statements are exactly as in C, albeit with a few
-restrictions.
-
-You might wonder about the function calls in the above code.  The
-``pvPut`` function is a special built-in function that writes (or puts)
-the value in the variable ``light`` to the appropriate process variable.
-But before I can explain how this works, we must talk about how program
-variables are "connected" to process variables.
-
+language. Particularly, the syntax for variable declarations, expressions,
+and statements are exactly as in C, albeit with a few minor restrictions,
+and also some additions.
 
 Variables
 ---------
 
-SNL programs interact with the outside world via variables that are bound
-to (or connected to) `process variable`\s (PVs) in EPICS. In our example,
-there are two such variables:  ``voltage``, which represents a measured
-voltage, and ``light`` which controls a light switch. In an actual SNL
-program, these variables must be declared before they can be used::
+As in C, variables must be declared before they can be used. The above example does not yet contain any variable declarations, so let's add them::
 
-  float voltage;
-  int light;
+  float pv voltage = pv ("Input_voltage", monitor);
+  int pv light = pv "Indicator_light";
 
-We also want to associated them with PVs i.e. EPICS record fields::
-
-  assign voltage to "Input_voltage";
-  assign light to "Indicator_light";
-
-The above `assign` clauses associate the variables ``voltage`` and
-``light`` with the process variables "Input_voltage" and
-"Indicator_light" respectively.
+This declares the two variables ``voltage``, which represents a measured
+voltage, and ``light`` which controls a light switch. The `pv` marker in
+the type says that these are not normal variables of type ``float`` and
+``int``, respectively (which would behave exactly as C variables) but rather
+so called /channels/. Channels are special variables that can be associated 
+with EPICS process variables (PVs). The names of the PVs are given in the
+initializer. The keyword "pv" is (re-)used here to distinguish it from the
+normal way to initialize a variable to a constant value.
 
 We also want the value of ``voltage`` to be updated automatically whenever
-it changes. This is accomplished with the following code::
+the PV changes its value. This is what the extra `monitor` flag in the
+initializer is for.
 
-  monitor voltage;
-
-Whenever the value in the control system (the EPICS database) changes,
-the value of ``voltage`` will likewise change. Note however that this
-depends on the underlying system sending update messages for the value
-in question. When and how often such updates are communicated by the
-underlying system may depend on the configuration of the PV. For
-instance if the PV "Input_voltage" is the VAL field of an ai (analog
-input) record, then the value of the MDEL field of the same record
-specifies the amount of change that the designer considers a
-"relevant" change; smaller changes will not cause an event to be sent,
-and accordingly will not cause a state change in the above program.
-
+So, whenever the value of the PV "Input_voltage" in the control system (the
+EPICS database) changes, the value of ``voltage`` will likewise change. Note
+however that this depends on the underlying system sending update messages
+for the value in question. When and how often such updates are communicated
+by the underlying system may depend on the configuration of the PV. For
+instance if the PV "Input_voltage" is the VAL field of an ai (analog input)
+record, then the value of the MDEL field of the same record specifies the
+amount of change that the designer considers a "relevant" change; smaller
+changes will not cause an event to be sent, and accordingly will not cause a
+state change in the above program.
 
 Built-in PV Functions
 ---------------------
 
-I said above that the program interacts with the outside world via
-variables assigned to PVs. However, mutating such a variable e.g. via
-the C assignment operator (see `Assignment Operators`), as in::
+In contrast to the `monitor` feature explained above, mutating the value of
+a channel, e.g. via the C assignment operator as in::
 
   light = TRUE;
 
-only changes the value of ``light`` as seen from inside the program.
-In order for the new value to take effect, it must be written to the
-PV connected with the variable. This is done by calling the special
-built-in function `pvPut`, that gets the variable as argument.
+only changes the value as seen from inside the program. To make the value of
+the PV change, too, the special built-in function `pvPut` must be called,
+with the channel variable as argument, as in::
 
-Note that calling such a special built-in function does *not* follow
-the standard C semantics for function calls! Particularly, what
-actually gets passed to the function is not the *value* of the variable
-``light`` (as it would in C), instead an internal representation of the
-variable gets passed (by reference). You can think of what actually
-gets passed as an "object" (as in "object-oriented") or a "handle"
-that contains all the necessary run-time information, one of which is
-the name of PV the variable is connected with.
+  pvPut(light);
 
-There are many more of these built-in functions, the `Reference`
-contains detailed description of each one. For now, let's keep to the
-basics; I'll mention just one more built-in function: With
-`pvGet`, you can poll PVs explicitly, instead of using
-`monitor`. That is, a statement such as ::
+Note that what actually gets passed to the function is, despite appearances,
+not the *value* of the variable ``light`` (a float), but rather the channel
+of type ``float pv``. The (simplified) type of `pvPut`::
+
+   enum pvStat pvPut(void pv channel)
+
+may make this clearer. Also note that channels are reference types, so in
+general the function may modify it.
+
+There are many more of these built-in functions, the `Reference` contains
+detailed descriptions of each one. For now, let's keep to the basics; I'll
+mention just one more built-in function: With `pvGet`, you can poll PVs
+explicitly, instead of using `monitor`. That is, a statement such as ::
 
   pvGet(voltage);
 
-has the effect of sending a get request to the PV "Input_voltage",
-waiting for the response, and then updating the variable with the
-new value.
+has the effect of sending a get request to the PV "Input_voltage", waiting
+for the response, and then updating the value of ``voltage`` with the new
+value.
 
 .. _A Complete Program:
 
@@ -176,12 +163,8 @@ Here is what the complete program for our example looks like::
 
   program level_check
 
-  float voltage;
-  assign voltage to "Input_voltage";
-  monitor voltage;
-
-  short light;
-  assign light to "Indicator_light";
+  float pv voltage = pv ("Input_voltage", monitor);
+  int pv light = pv "Indicator_light";
 
   ss volt_check {
     state light_off {
@@ -218,9 +201,8 @@ function with amplitude 11).
 
 First, we add the following lines to the declaration::
 
-  float vout;
+  float pv vout = pv "Output_voltage";
   float delta;
-  assign vout to "Output_voltage";
 
 Next we add the following lines after the first state set::
 
@@ -251,7 +233,7 @@ it the name ``init``. From this first state there is an immediate
 unconditional transition to the state ``ramp``, initializing some
 variables during the transition. Note that the ``ramp`` state always
 returns to itself. The structure of this state set is shown in the
-following STD:
+following diagram:
 
 .. blockdiag::
 
@@ -293,8 +275,7 @@ value) and counts from the time the state was entered.
 
 At this point, you may wish to try an example with the two state sets.
 You can jump ahead and read parts of the Chapters `Compiling` and
-`Using` to find out how. You probably want to pick unique names
-for your process variables, rather than the ones used above.
+`Using` to find out how.
 
 
 Variable Initialization and Entry Blocks
@@ -339,16 +320,16 @@ PV Names Using Program Parameters
 ---------------------------------
 
 You can use program parameter substitution to parameterize the PV names
-in your program. In our example we could replace the `assign`
-statements with the following::
+in your program. In our example we could say::
 
-  assign voltage to "{unit}:ai1";
-  assign vout to "{unit}:ao1";
+  float pv voltage = pv ("{unit}:Input_voltage", monitor);
+  int pv light = pv "{unit}:Indicator_light";
 
 The string within the curly braces is the name of a program parameter
 and the whole thing (the name and the braces) are replaced with the
 value of the parameter. For example, if the parameter "unit" has value
-"DTL_6:CM_2", then the expanded PV name is "DTL_6:CM_2:ai1". See
+"DTL_6:CM_2", then the expanded PV name of ``voltage`` is
+"DTL_6:CM_2:Input_voltage". See
 `run time parameters` for more on program parameters (and
 particularly how to give them values).
 
@@ -356,133 +337,148 @@ particularly how to give them values).
 Data Types
 ----------
 
-In earlier versions, variables were restricted to a hand full of
-predefined types, plus one or two-dimensional arrays of these.
+SNL data types are very similar to the ones you can use (and define) in C,
+with a few minor restrictions. The most important one is that "pv" types are
+limited to primitive types and arrays of them. This is because these are the
+data types that EPICS `PV`\s can have. Another one is that *type synonyms*
+(introduced in C with "typedef") are not allowed in SNL; when using a
+typedef defined in some C library, you must prefix the type name with the
+keyword "typename", so that the compiler knows that this is a type and not a
+variable.
 
-This is no longer true: you can declare variables of any type you like.
-The only restrictions are:
-
-#. you cannot *define* new types, only use them in declarations
-
-#. when using type aliases ("typedef") you must prefix them with
-   the keyword "typename"
-
-#. only variables of the above mentioned restricted list can be
-   `assign`\'ed to PVs.
-
-The built-in types are: ``char``, ``unsigned char``, ``short``,
-``unsigned short``, ``int``, ``unsigned int``, ``long``,  ``unsigned
-long``, ``float`` , and ``double``. These correspond exactly to their C
-equivalents. In addition there is the type ``string``, which is an array
-of 40 ``char``.
-
-Sequencer variables having any of these types may be
-assigned to a process variable. The type declared does not have to be
-the same as the native control system value type. The conversion
-between types is performed at run-time. For more details see the
-`corresponding section in the reference <Types>`.
-
-You may specify array variables as follows::
-
-  long arc_wf[1000];
-
-When assigned to a process variable, operations such as
-`pvPut` are performed for the entire array.
+Further details can be found in the reference under `Types and
+Declarations`.
 
 
-Arrays of Variables
--------------------
+Arrays and Structs of Channel Variables
+---------------------------------------
 
-Often it is necessary to have several associated process
-variables. The ability to assign each element of an SNL array to a
-separate process variable can significantly reduce the code
-complexity. The following illustrates this point::
+Aggregation of variables into larger structures helps to give structure to
+programs. In SNL, this is of course the same. Of particular interest for us
+is that such structures can contain channel variables, too.
 
-  float Vin[4];
-  assign Vin[0] to "{unit}1";
-  assign Vin[1] to "{unit}2";
-  assign Vin[2] to "{unit}3";
-  assign Vin[3] to "{unit}4";
+For instance, an array of four analog output channels, each assigned to its
+own PV, can be declared as ::
 
-We can then take advantage of the ``Vin`` array to reduce code size
-as in the following example::
+  float pv Vout[4] = pv {
+    "{unit}1",
+    "{unit}2",
+    "{unit}3",
+    "{unit}4"
+  };
+
+As in C, you could program a loop over this array as in ::
 
   for (i = 0; i < 4; i++) {
-    Vin[i] = 0.0;
-    pvPut (Vin[i]);
+    Vout[i] = 0.0;
+    pvPut (Vout[i]);
   }
 
-We also have a shorthand method for assigning channels to array
-elements::
+A subtlety here is the precedence of the "pv" marker in the declaration. In ::
 
-  assign Vin to { "{unit}1", "{unit}2", "{unit}3", "{unit}4" };
+  float pv Vout[4]
+
+the ``[4]`` suffix binds stronger, so this is read as "Vout is an array of 4
+pv of float". If, in constrast, you have a single PV, which has an array of
+floats as its value, you must write this as ::
+
+  float (pv Vout)[4]
+
+which then reads "Vout is a pv of an array of 4 floats", and would be used
+as in ::
+
+  for (i = 0; i < 4; i++) {
+    Vout[i] = 0.0;
+  }
+  pvPut (Vout); // a single pvPut for the whole array
 
 Similarly, the monitor declaration may be either by individual
 element::
 
-  monitor Vin[0];
-  monitor Vin[1];
-  monitor Vin[2];
-  monitor Vin[3];
+  float pv Vin[4] = {
+    pv ("{unit}1", monitor),
+    pv ("{unit}2", monitor),
+    pv ("{unit}3", monitor),
+    pv ("{unit}4", monitor),
+  };
 
-Alternatively, we can do this for the entire array::
+or for all of them together::
 
-  monitor Vin;
+  float pv Vout[4] = pv ({
+    "{unit}1",
+    "{unit}2",
+    "{unit}3",
+    "{unit}4"
+  }, monitor);
 
-And the same goes when `Synchronizing State Sets with Event Flags`_
-and `QueuingMonitors`.
+So far we have been focusing on simple one-dimensional arrays. When you want
+to aggregate channels of different types, defining a struct is the way to
+go::
 
-Double subscripts offer additional options::
+  struct PowerSupply {
+    double pv setCur;
+    double pv readCur;
+    int pv statusBits[8];
+  };
 
-  double X[2][100];
-  assign X to {"apple", "orange"};
+  struct PowerSupply ps[3];
 
-The declaration creates an array with 200 elements. The first 100
-elements of ``X`` are assigned to (array) "apple", and the second
-100 elements are assigned to (array) "orange" .
+This declares ps as an array of three PowerSupply structs, each of which has
+one setpoint, one readback, and eight status bit channels. (Not all members must
+be of a pv type, you can freely mix pv and non-pv members.)
 
-It is important to understand the distinction between the first and
-second array indices here. The first index defines a 2-element array
-of which each element is associated with a process variable. The
-second index defines a 100-element double array to hold the value of
-each of the two process variables. When used in a context where a
-number is expected, both indices must be specified, e.g. ``X[1][49]``
-is the 50th element of the value of "orange" . When used in a context
-where a process variable is expected, e.g. with `pvPut`, then
-only the first index should be specified, e.g. ``X[1]`` for "orange" .
+
+Traditional Syntax for Channel Variable Configuration
+-----------------------------------------------------
+
+There is an alternative notation for assigning PV names to channel
+variables. In earlier versions of the sequencer this was the only way, so
+you might find this notation a lot in existing programs.
+
+Let's say we have ::
+
+  int pv x;
+
+Then you can separately assign a PV name with ::
+
+  assign x to "name_of_the_pv";
+
+and declare that it should be monitored with ::
+
+  monitor x;
+
+PV initializers are more compact and avoid repeating the variable name,
+while the traditional style is more explicit. It is largely a matter of
+taste which you prefer.
+
 
 Dynamic Assignment
 ------------------
 
-You may dynamically assign or re-assign variable to process
-variables during the program execution as follows::
+You may dynamically assign or re-assign variables to PVs during the program
+execution as follows::
 
-  float Xmotor;
+  float pv Xmotor;
   assign Xmotor to "Motor_A_2";
   ...
   sprintf (pvName, "Motor_%s_%d", snum, mnum)
   pvAssign (Xmotor[i], pvName);
 
-Note that dynamic (re-)assignment fails (with a compiler error)
-if the variable has not been assigned statically.
-
-An empty string in the assign declaration implies no initial
-assignment and can be used to mark variables or array elements
-for later dynamic assignment::
-
-  assign Xmotor to "";
-
-Likewise, an empty string can de-assign a variable::
+If you pass an empty string, the variable gets de-assigned::
 
   pvAssign(Xmotor, "");
 
-The current assignment status of a variable is returned by the
-`pvAssigned` function as follows::
+In `safe mode` this means that it becomes an anonymous PV that is only visible
+inside the program, whereas in traditional mode it will be treated as if it
+were no channel variable (i.e. as if it had no pv marker in its type).
 
-  isAssigned = pvAssigned(Xmotor);
+The `pvAssigned` function returns whether a channel is currently assigned to
+a PV::
 
-The number of assigned variables is returned by the
-`pvAssignCount` function as follows::
+  if (pvAssigned(Xmotor[0])) ...
+
+The number of currently assigned variables in the whole program is returned
+by the `pvAssignCount` function::
 
   numAssigned = pvAssignCount();
 
@@ -490,66 +486,80 @@ The following inequality will always hold::
 
   pvConnectCount() <= pvAssignCount() <= pvChannelCount()
 
-Having assigned a variable, you should wait for it to connect
+After assigning a variable, you should wait for it to connect
 before using it (although it is OK to monitor it). See
 `Connection Management`_.
 
-Status of Process Variables
----------------------------
 
-Process variables have an associated status, severity and time stamp.
+Status of Channels
+------------------
+
+Channel variables have an associated status, severity and time stamp.
 You can obtain these with the `pvStatus`, `pvSeverity`
 and `pvTimeStamp` functions. For example::
 
   when (pvStatus(x_motor) != pvStatOK) {
-  printf("X motor status=%d, severity=%d, timestamp=%d\\n",
-  pvStatus(x_motor), pvSeverity(x_motor),
-  pvTimeStamp(x_motor).secPastEpoch);
-  ...
+    printf("X motor status=%d, severity=%d, timestamp=%d\\n",
+      pvStatus(x_motor), pvSeverity(x_motor),
+      pvTimeStamp(x_motor).secPastEpoch);
+  }
 
-These routines are described in `BuiltinFunctions`. The values
-for status and severity are defined in the include file *pvAlarm.h*,
-and the time stamp is returned as a standard EPICS ``TS_STAMP``
-structure, which is defined in *tsStamp.h* . Both these files are
-automatically included when compiling sequences (but the SNL compiler
-doesn't know about them, so you will get warnings when using constants
-like ``pvStatOK`` or tags like ``secPastEpoch`` ).
 
 .. _EventFlags:
 
 Synchronizing State Sets with Event Flags
 -----------------------------------------
 
-State sets within a program may be synchronized through the use
-of event flags. Typically, one state set will set an event flag, and
-another state set will test that event flag within a `transition`
-clause. The `sync` statement may also be used to associate an
-event flag with a process variable that is being monitored. In that
-case, whenever a monitor is delivered, the corresponding event flag is
-set. Note that this provides an alternative to testing the value of
-the monitored channel and is particularly valuable when the channel
-being tested is an array or when it can have multiple values and an
-action must occur for any change.
+Different state sets within the same program are run as concurrent threads;
+and the whole programs runs concurrently to the "rest of the world", i.e.
+the control system that provides the PVs.
 
-This example shows a state set that forces a low limit always to be
-less than or equal to a high limit. The first `transition` clause
-fires when the low limit changes and someone has attempted to set it
-above the high limit. The second `transition` clause fires when the
-opposite situation occurs.
+To synchronize state sets with each other, and with externally issued events
+on process variables, *event flags* can be used. Event flags are boolean
+variables whose value be accessed only with the four built-in functions
+`efSet`, `efClear`, `efTest`, and `efTestAndClear`.
+
+For instance, one state set will set an event flag, and another state set
+will test that event flag within a `transition` clause.
+
+An event flag can be associated with one or more monitored channel
+variables. In this case, whenever a monitor for one of the channels is
+delivered, the corresponding event flag is set. This is particularly useful
+when some action or state change must occur for any change in a set of
+channels.
+
+The following example shows a state set that forces a low limit to be
+less than or equal to a high limit. The first `transition` clause fires when
+the low limit changes and someone has attempted to set it above the high
+limit. The second `transition` clause fires when the opposite situation
+occurs. 
+
+.. todo:: this works, too
+
+  ::
+
+    struct Limit {
+      double pv limit;
+      evflag flag;
+    };
+
+    struct Limits {
+      struct Limit low;
+      struct Limit high;
+    };
+
+    struct Limits limits = {
+      { pv ("demo:loLimit", monitor, sync limits.low.flag), 0 },
+      { pv ("demo:hiLimit", monitor, sync limits.low.flag), 0 },
+    };
 
 ::
 
-  double loLimit;
-  assign loLimit to "demo:loLimit";
-  monitor loLimit;
   evflag loFlag;
-  sync loLimit loFlag;
+  double pv loLimit = pv ("demo:loLimit", monitor, sync loFlag);
 
-  double hiLimit;
-  assign hiLimit to "demo:hiLimit";
-  monitor hiLimit;
   evflag hiFlag;
-  sync hiLimit hiFlag;
+  double pv hiLimit = pv ("demo:hiLimit", monitor, sync hiFlag);
 
   ss limit {
     state START {
@@ -565,11 +575,8 @@ opposite situation occurs.
     }
   }
 
-The event flag is actually associated with the SNL variable, not
-the underlying process variable. If the SNL variable is an
-array then the event flag is set whenever a monitor is posted on
-any of the process variables that are associated with an
-element of that array.
+You can synchronize many different channel to the same event flag, but each
+channel can only be `sync`'ed to one event flag.
 
 .. _QueuingMonitors:
 
@@ -578,27 +585,29 @@ Queuing Monitors
 
 Neither testing the value of a monitored channel in a `transition`
 clause nor associating the channel with an event flag and then testing
-the event flag can guarantee that the sequence is aware of all
+the event flag can guarantee that a program is aware of all
 monitors posted on the channel. Often this doesn't matter, but
 sometimes it does. For example, a variable may transition to 1 and
 then back to 0 to indicate that a command is active and has completed.
-These transitions may occur in rapid succession. This problem can be
-avoided by using the `syncq` statement to associate a variable
-with a queue. The `pvGetQ` function retrieves and removes the
-head of queue.
+If these transitions occur in rapid succession, then the program might "see"
+only one event, with the (unchanged) value 0.
 
-This example illustrates a typical use of `pvGetQ` : setting a
-command variable to 1 and then changing state as an active flag
-transitions to 1 and then back to 0. Note the use of `pvFlushQ`
-to clear the queue before sending the command. Note also that, if
-`pvGetQ` hadn't been used then the active flag's transitions
-from 0 to 1 and back to 0 might both have occurred before the
-`transition` clause in the ``sent`` state fired::
+Queues are a way to make sure that no events are lost (assuming the queue
+size is large enough to avoid overflow). To associate a queue with a channel
+variable, you can use a pv initializer::
 
-  long command; assign command to "commandVar";
+  int pv cmd = pv ("{unit}:cmd", monitor, syncq 10);
 
-  long active; assign active to "activeVar"; monitor active;
-  syncq active 2;
+This allocates a queue of size 10 for the channel (size means the maximum
+number of events that can be stored for this channel). The `pvGetQ` function
+retrieves and removes the head of queue, if any, returning FALSE if the
+queue is empty and TRUE otherwise.
+
+Here is an example::
+
+  int pv command = pv "commandVar";
+
+  int pv active = pv ("activeVar", monitor, syncq 2);
 
   ss queue {
     state start {
@@ -619,36 +628,43 @@ from 0 to 1 and back to 0 might both have occurred before the
     }
   }
 
-The ``active`` SNL variable could have been an array in the above
-example. It could therefore have been associated with a set of
-related control system ``active`` flags. In this case, the queue
-would have had an entry added to it whenever a monitor was posted
-on any of the underlying control system ``active`` flags.
+This program sets the ``command`` variable to 1 and then waits for the
+``active`` flag to change as a result. When the ``active`` flag goes back to
+0 we know the operation has completed.
+
+Note the use of `pvFlushQ` to clear the queue before sending the command.
+This is recommended, since the channel might change due to external factors
+before our command is issued.
+
+It is allowed to use the same queue for more than one channel variable,
+provided they all have the same value type. This is currently only possible
+if the channels are array elements.
 
 .. todo:: check if the implementation conforms to the above
 
 Asynchronous Use of pvGet
 -------------------------
 
-Normally the `pvGet` operation completes before the function
-returns, thus ensuring data integrity. However, it is possible to use
-these functions asynchronously by specifying the `+a` compiler
-flag (see `CompilerOptions`). The operation might not be
-initiated until the action statements in the current transition have
-been completed and it could complete at any later time. To test for
-completion use the function `pvGetComplete`, which is
-described in `BuiltinFunctions`.
+Normally the `pvGet` operation acts snychronously, that is, it waits until a
+response from the PV has arrived before returning to the caller. It is
+possible to change this default behaviour by specifying the `+a` compiler
+flag (see `CompilerOptions`). In this case the operation will only be
+initiated and the function returns immediately. To test for completion use
+the function `pvGetComplete`.
 
-`pvGet` also accepts an optional ``SYNC`` or ``ASYNC``
-argument, which overrides the `+a` compiler flag. For
-example::
+`pvGet` also accepts an optional ``SYNC`` or ``ASYNC`` argument, which
+overrides the `+a` compiler flag (or its absence). For example, ::
 
   pvGet( initActive[i], ASYNC );
+
+will make the operation asynchronous, regardless of any compiler flags.
 
 .. _AsynchronousUseofpvPut:
 
 Asynchronous Use of pvPut
 -------------------------
+
+The situation is similar, though not identical, with `pvPut`.
 
 Normally `pvPut` is a "fire and forget" operation without any provisions for
 testing if and when it completed successfully. However, this
@@ -718,9 +734,8 @@ puts that are not yet complete and to ``TRUE`` for puts that are complete.
 Connection Management
 ---------------------
 
-All process variable connections are handled by the sequencer via the
-PV API. Normally the programs are not run until all process
-variables are connected. However, with the `-c` compiler flag,
+Normally all state sets in a program wait until all channel
+variables are connected to their PVs. However, with the `-c` compiler flag,
 execution begins while the connections are being established. The
 program can test for each variable's connection status with the
 `pvConnected` routine, or it can test for all variables
@@ -747,34 +762,30 @@ assigned variables to connect, as in::
   when (delay(10)) {
   } state connect_timeout
 
-Note that the connection callback may be delivered before or after
-the initial monitor callback (the PV API does not specify the
-behavior, although the underlying message system may do so). If
-this matters to you, you should synchronize the value with an event
-flag and wait for the event flag to be set before proceeding. See
-`Synchronizing State Sets with Event Flags`_ for an example.
+The connection status of a single channel variable can be tested with the
+`pvConnected` function, for instance inside a `when` condition. If you also
+want to wait for an initial monitor event, you can use an event flag (see
+`Synchronizing State Sets with Event Flags`_).
 
-Multiple Instances and Reentrant Object Code
---------------------------------------------
+Multiple Instances and Reentrant Mode
+-------------------------------------
 
-Occasionally you will create a program that can be used in
-multiple instances. If these instances run in separate address spaces,
-there is no problem. However, if more than one instance must be
-executed simultaneously in a single address space, then the objects
-must be made reentrant using the `+r` compiler flag. With this
-flag all variables are allocated dynamically at run time; otherwise
-they are declared static. With the `+r` flag all variables
-become elements of a common data structure, and therefore access to
-variables is slightly less efficient.
+Occasionally you will create a program that can be used in multiple
+instances, typically using different program parameters for the different
+instances. If these instances run inside the same address space, then the
+generated code must be made reentrant using the `+r` compiler flag. With
+this flag all global and stateset local variables are declared in a big
+struct and allocated dynamically at run time; otherwise they are declared
+one by one as static C variables.
 
 Process Variable Element Count
 ------------------------------
 
-All requests for process variables that are arrays assume the array
-size for the element count. However, if the process variable has a
-smaller count than the array size, the smaller number is used for all
-requests. This count is available with the `pvCount` function.
-The following example illustrates this::
+Channel variables may be assigned to array valued PVs. Requests for such
+channels assume the array size for the element count. However, if the PV has
+a smaller count than the array size, the smaller number is used for all
+requests. This count is available via the `pvCount` function. The following
+example illustrates this::
 
   float wf[2000];
   assign wf to "{unit}:CavField.FVAL";
@@ -939,7 +950,11 @@ think of the operation as ``elapsed(s)`` rather than ``delay(s)``.
 If your action statements have any sort of polling loops or calls to
 ``epicsThreadSleep`` you should reconsider your design. The presence
 of such operations is a strong indication that you're not using the
-sequencer as intended.
+sequencer as intended. Use of functions such as ``epicsThreadSleep`` can
+make sense in certain sitations, but in most cases it is better to
+wait using a `when` condition with a call to `delay`. The reason for this is
+that this easily allows you to extend it with other conditions your program
+might want to respond to, such as the user hitting an "abort" button.
 
 Using pvPut and monitor in the same state set
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -991,10 +1006,9 @@ least
 
 #. use `safe mode`, *and*
 
-#. either
+#. make sure any change you make to the variable gets published (using
+   `pvPut`, for named channels with ``SYNC`` option) before you leave the
+   current action block.
 
-   a) make sure any change you make to the variable gets published (using
-      `pvPut`) before you leave the current action block, *or*
-
-   b) refrain from changing it, and instead copy the value to some other
-      variable and change *that*.
+However, the ultimate solution is to use different channel variables for
+input and output; you can still assign them to the same PV.

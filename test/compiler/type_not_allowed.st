@@ -8,10 +8,10 @@ foreign a_f[1];         /* error: array of foreign entities */
 foreign f_f();          /* error: function returning foreign entity */
 #endif
 
-evflag *p_ef;           /* error: pointer to event flag */
-evflag a_ef[1];         /* error: array of event flags */
+evflag *p_ef;           /* ok */
+evflag a_ef[1];         /* ok */
 evflag const c_ef;      /* error: constant event flag */
-evflag f_ef();          /* error: function returning event flag */
+evflag f_ef();          /* ok */
 
 int (const c_a)[1];     /* error: constant array */
 int (const c_f)();      /* warning: constant function */
@@ -23,5 +23,11 @@ int f__v_i(void, int);  /* error: void must be the only parameter */
 int f__v(void v);       /* error: void parameter should not have a name */
 
 int a_i_zero[0];        /* error: invalid array size (must be >= 1) */
+
+void pv pv_v;           /* error: void pv can only be declared as function parameter */
+evflag pv pv_ef;        /* error: invalid pv type */
+int const pv pv_ci;     /* error: pv of constant */
+int pv const cpv_i;     /* warning: constant pv */
+int pv pv pvpv_i;       /* error: repeated pv */
 
 #include "../simple.st"

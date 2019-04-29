@@ -34,7 +34,9 @@ sync a to ef_a;
 
 entry {
     seq_test_init(5*NTESTS);
+    testDiag("pvSyncSingle x");
     pvSync(x,ef_x);
+    testDiag("efSet(ef_putx)");
     efSet(ef_putx);
     efClear(ef_i);
     efClear(ef_a);
@@ -81,6 +83,7 @@ ss pvSyncY {
                 state done;
             }
             pvArraySync(a, NTESTS, NOEVFLAG);
+            testDiag("after pvArraySync(a, %d, NOEVFLAG)", NTESTS);
             efSet(ef_putx);
         } state pvSync
     }

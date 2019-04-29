@@ -35,14 +35,12 @@ in the file LICENSE that is included with this distribution.
 
 #include "seq_snc.h"
 #define boolean seqBool
-#define bitMask seqMask
 
 #include "seq_queue.h"
 
 #define valPtr(ch,ss)		((char*)(ss)->var+(ch)->offset)
 #define bufPtr(ch)		((char*)(ch)->prog->var+(ch)->offset)
 
-#define ssNum(ss)		((ss)-(ss)->prog->ss)
 #define chNum(ch)		((ch)-(ch)->prog->chan)
 
 #define metaPtr(ch,ss) (			\
@@ -83,6 +81,8 @@ typedef struct program_instance	PROG;
 typedef struct pvreq		PVREQ;
 typedef const struct pv_type	PVTYPE;
 typedef struct pv_meta_data	PVMETA;
+typedef struct event_flag	EVFLAG;
+typedef enum prim_type_tag	PTYPE;
 
 typedef struct seqg_vars        SEQ_VARS;
 
@@ -99,10 +99,8 @@ struct channel
 
 	/* dynamic channel data (assigned at runtime) */
 	DBCHAN		*dbch;		/* channel assigned to a named db pv */
-	EF_ID		syncedTo;	/* event flag id if synced */
-	CHAN		*nextSynced;	/* next channel synced to same flag */
+	evflag		syncedTo;	/* event flag id if synced */
 	QUEUE		queue;		/* queue if queued */
-	boolean		monitored;	/* whether channel is monitored */
 	/* buffer access, only used in safe mode */
 	epicsMutexId	varLock;	/* mutex for locking access to shared
 					   var buffer and meta data */
@@ -110,7 +108,7 @@ struct channel
 
 struct pv_type
 {
-	enum prim_type_tag tag;
+	PTYPE		tag;
 	pvType		putType;
 	pvType		getType;
 	size_t		size;
@@ -132,12 +130,14 @@ struct db_channel
 	pvVar		pvid;		/* PV (process variable) id */
 	unsigned	dbCount;	/* actual count for db access */
 	boolean		connected;	/* whether channel is connected */
+	boolean		monitored;	/* whether channel should be monitored */
 	boolean		gotMonitor;	/* whether we got a monitor after connect */
 	PVMETA		metaData;	/* meta data (shared buffer) */
 };
 
 struct state_set
 {
+	/* important: var must be the first member */
 	SEQ_VARS	*var;		/* variable value block */
 
 	/* static state set data (assigned once on startup) */
@@ -151,15 +151,19 @@ struct state_set
 	int		currentState;	/* current state index, -1 if none */
 	int		nextState;	/* next state index, -1 if none */
 	int		prevState;	/* previous state index, -1 if none */
-	const bitMask	*mask;		/* current event mask */
+	boolean		eval_when;	/* whether we are evaluating when-conditions */
+	seqMask		*mask;		/* current event mask */
 	double		timeEntered;	/* time that current state was entered */
 	double		wakeupTime;	/* next time state set should wake up */
 	epicsEventId	syncSem;	/* semaphore for event sync */
 	epicsEventId	dead;		/* event to signal state set exit done */
+	epicsEventId	holdSem;	/* block on this semaphore during hold */
+	epicsEventId	holding;	/* flag to indicate we are holding */
 	/* these are arrays, one for each channel */
 	PVREQ		**getReq;	/* currently pending get requests */
 	PVREQ		**putReq;	/* currently pending put requests */
 	PVMETA		*metaData;	/* meta data (safe mode) */
+	boolean		*monitored;	/* whether channel is monitored */
 	/* safe mode */
 	boolean		*dirty;		/* array of flags, one for each channel */
 };
@@ -168,8 +172,9 @@ STATIC_ASSERT(offsetof(struct state_set,var)==0);
 
 struct program_instance
 {
-	SEQ_VARS	*var;		/* user variable area (shared buffer) */
-
+	/* important: var must be the first member */
+	SEQ_VARS	*var;		/* user variable area (shared buffer),
+					   in safe mode only for CA callbacks */
 	/* static program data (assigned once on startup) */
 	const char	*progName;	/* program name (for messages) */
 	int		instance;	/* program instance number */
@@ -189,13 +194,14 @@ struct program_instance
 	SEQ_PROG_FUNC	*initFunc;	/* init function */
 	SEQ_SS_FUNC	*entryFunc;	/* entry function */
 	SEQ_SS_FUNC	*exitFunc;	/* exit function */
+	EVFLAG		*eventFlags;	/* array of event flag structures */
 	unsigned	numEvFlags;	/* number of event flags */
+	unsigned	numEvWords;	/* number of words in event mask */
 
 	/* dynamic program data (assigned at runtime) */
-	epicsMutexId	lock;	/* mutex for locking dynamic program data */
-	/* the following five members must always be protected by lock */
-	bitMask		*evFlags;	/* event bits for event flags & channels */
-	CHAN		**syncedChans;	/* for each event flag, start of synced list */
+	epicsMutexId	lock;		/* mutex for locking the counts below,
+					   and also to lock re-assign against CA */
+	/* the following six members must always be protected by lock */
 	unsigned	assignCount;	/* number of channels assigned to ext. pv */
 	unsigned	connectCount;	/* number of channels connected */
 	unsigned	monitorCount;	/* number of channels monitored */
@@ -204,8 +210,9 @@ struct program_instance
 
 	void		*pvReqPool;	/* freeList for pv requests (has own lock) */
 	boolean		die;		/* flag set when seqStop is called */
+	epicsMutexId	holdLock;	/* guard access to hold flag */
+	boolean		hold;		/* ask state sets to suspend activity */
 	epicsEventId	ready;		/* all channels connected & got 1st monitor */
-	epicsEventId	dead;		/* event to signal exit of main thread done */
 	PROG		*next;		/* next element in program list */
 };
 
@@ -218,6 +225,14 @@ struct pvreq
 	SSCB		*ss;		/* state set that made the request */
 };
 
+struct event_flag
+{
+	epicsMutexId	lock;		/* mutex for locking the event flag */
+	boolean		value;		/* either 0 or 1 */
+	unsigned	eventNum;	/* event number */
+	seqMask		*synced;	/* set of channels synced to this event flag */
+};
+
 /* Thread parameters */
 #define THREAD_NAME_SIZE	32
 #define THREAD_STACK_SIZE	epicsThreadStackBig
@@ -225,11 +240,20 @@ struct pvreq
 
 /* Internal procedures */
 
+/* seq_ef.c */
+evflag seq_efCreate(PROG_ID sp, unsigned ef_num, unsigned val);
+
+/* seq_chan.c */
+CH_ID seq_pvCreate(
+    PROG            *sp,            /* program instance */
+    unsigned        chNum,          /* index of channel */
+    seqChan         *chInfo);       /* snc generated channel info */
+
 /* seq_task.c */
 void sequencer(void *arg);
 void ss_write_buffer(CHAN *ch, void *val, PVMETA *meta, boolean dirtify);
 void ss_read_buffer(SSCB *ss, CHAN *ch, boolean dirty_only);
-void ss_read_buffer_selective(PROG *sp, SSCB *ss, EF_ID ev_flag);
+void ss_read_buffer_selective(PROG *sp, SSCB *ss, evflag ev_flag);
 void ss_wakeup(PROG *sp, unsigned eventNum);
 
 /* seq_mac.c */

@@ -15,14 +15,14 @@ in the file LICENSE that is included with this distribution.
 
 #include "types.h"
 
-void generate_code(Program *p);
-void gen_defn_c_code(Node *scope, int level);
+void generate_code(Node *prog);
 void gen_var_decl(Var *vp);
 void indent(int level);
 
 /* names and name prefixes for generated structs */
 #define NM_VARS		"seqg_vars"
 #define NM_CHANS	"seqg_chans"
+#define NM_EVFLAGS	"seqg_evflags"
 #define NM_STATES	"seqg_states"
 #define NM_STATESETS	"seqg_statesets"
 
@@ -30,20 +30,23 @@ void indent(int level);
 #define NM_ENTRY	"seqg_entry"
 #define NM_EXIT		"seqg_exit"
 #define NM_INIT		"seqg_init"
-#define NM_ACTION	"seqg_action"
-#define NM_EVENT	"seqg_event"
-#define NM_MASK		"seqg_mask"
+#define NM_TRANS	"seqg_trans"
+#define NM_EVMASK	"seqg_evmask"
+#define NM_MONMASK	"seqg_monmask"
 
 /* names of generated function arguments */
 #define NM_VAR		"seqg_var"
 #define NM_ENV		"seqg_env"
-#define NM_TRN		"seqg_trn"
-#define NM_PTRN		"seqg_ptrn"
-#define NM_PNST		"seqg_pnst"
+#define NM_PNST		"seqg_next_state"
 
-/* prefix for generated inititialization variable names */
-#define NM_INITVAR	"seqg_initvar_"
+/* name prefixes for generated variables */
+#define NM_CHID		"seqg_chid_"
+#define NM_EFID		"seqg_efid_"
 
+/* special purpose generated variable names */
+#define NM_INITVAR	"seqg_initvar"
+#define NM_GOTEVENT	"seqg_got_event"
+#define NM_WAIT		"seqg_wait"
 #define NM_DUMMY	"seqg_dummy"
 
 #endif	/*INCLgencodeh*/

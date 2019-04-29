@@ -242,6 +242,7 @@ snl:
 	"enum"		{ TYPEWORD(ENUM,	"enum"); }
 	"evflag"	{ TYPEWORD(EVFLAG,	"evflag"); }
 	"exit"		{ KEYWORD(EXIT,		"exit"); }
+	"do"		{ KEYWORD(DO,		"do"); }
 	"float"		{ TYPEWORD(FLOAT,	"float"); }
 	"for"		{ KEYWORD(FOR,		"for"); }
 	"foreign"	{ TYPEWORD(FOREIGN,	"foreign"); }
@@ -251,6 +252,7 @@ snl:
 	"monitor"	{ KEYWORD(MONITOR,	"monitor"); }
 	"option"	{ KEYWORD(OPTION,	"option"); }
 	"program"	{ KEYWORD(PROGRAM,	"program"); }
+	"pv"		{ TYPEWORD(PV,		"pv"); }
 	"return"	{ KEYWORD(RETURN,	"return"); }
 	"short"		{ TYPEWORD(SHORT,	"short"); }
 	"sizeof"	{ TYPEWORD(SIZEOF,	"sizeof"); }
@@ -266,6 +268,7 @@ snl:
 	"union"		{ TYPEWORD(UNION,	"union"); }
 	"unsigned"	{ TYPEWORD(UNSIGNED,	"unsigned"); }
 	"void"		{ TYPEWORD(VOID,	"void"); }
+	"wait"		{ KEYWORD(WAIT,		"wait"); }
 	"when"		{ KEYWORD(WHEN,		"when"); }
 	"while"		{ KEYWORD(WHILE,	"while"); }
 
@@ -283,7 +286,8 @@ snl:
 	}
 
 	LET (LET|DEC)*	{ IDENTIFIER(NAME, identifier, strdupft(s->tok, cursor)); }
-	("0" [xX] HEX+ IS?) | ("0" OCT+ IS?) | (DEC+ IS?) | (['] (ESC|[^\n\\'])* ['])
+
+	("0" [xX] HEX+ IS?) | ("0" OCT* IS?) | ([1-9]DEC* IS?) | (['] (ESC|[^\n\\'])* ['])
 			{ LITERAL(INTCON, integer_literal, strdupft(s->tok, cursor)); }
 
 	(DEC+ EXP FS?) | (DEC* "." DEC+ EXP? FS?) | (DEC+ "." DEC* EXP? FS?)

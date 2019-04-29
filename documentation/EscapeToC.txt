@@ -3,18 +3,19 @@
 Escape to C Code
 ================
 
-.. todo::
+In earlier versions, especially before version 2.2, SNL supported only a
+small subset of the C language. So the original author added an escape
+hatch: you can write C code in SNL which gets copied directly over to the
+generated C code.
 
-   - update to version 2.2 (see release notes for many details)
-   
-   - reduce verbosity, e.g. move examples and motivations to the tutorial
+Over the years I have been lifting many of the language restrictions of SNL.
+Those that still remain don't seriously limit expressiveness. With version
+2.3 writing escaped C code is no longer necessary at all, except for
+(deferred) #include of headers files (and i am thinking about closing this
+last hole with a bit of extra syntax).
 
-   - explain how to do common things w/o escape to C, e.g.
-     define your own functions in SNL
+The escape hatch is still fully supported, though, mainly for compatibility.
 
-Because the SNL does not support the full C language, C code may be
-escaped in the program. The escaped code is not compiled by
-`snc`, instead it is literally copied to the generated C code.
 There are two escape methods:
 
 #. Any code between ``%%`` and the next newline character is escaped.
@@ -137,6 +138,22 @@ file is always included by the generated C code.
 
 Variable Modification for Reentrant Option
 ------------------------------------------
+
+.. warning::
+
+   The following is out-dated information. The UserVar struct no longer
+   exists under this name. There are compatibility macros for things like
+   pVar, though. If in doubt, consult working examples, there are some
+   under test/validate e.g.
+
+   * evflagExt.st
+   * functionInStruct.st
+   * indirectCall.st
+   * structdef.st
+   * userfuncEf.st
+   * userfunc.st
+
+.. todo:: bring this section up to date
 
 If the reentrant option (`+r`) is specified to `snc`
 then all variables are made part of a structure. Suppose we have the

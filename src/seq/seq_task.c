@@ -181,6 +181,7 @@ static void ss_read_all_buffer(PROG *sp, SSCB *ss)
 {
 	unsigned nch;
 
+	DEBUG("ss_read_all_buffer\n");
 	for (nch = 0; nch < sp->numChans; nch++)
 	{
 		CHAN *ch = sp->chan + nch;
@@ -192,24 +193,33 @@ static void ss_read_all_buffer(PROG *sp, SSCB *ss)
 /*
  * ss_read_all_buffer_selective() - Call ss_read_buffer_static
  * for all channels that are sync'ed to the given event flag.
- * NOTE: calling code must take sp->lock, as we traverse
- * the list of channels synced to this event flag.
+ * NOTE: calling code must take ev_flag->lock, as we traverse
+ * the set of channels synced to this event flag.
  */
-void ss_read_buffer_selective(PROG *sp, SSCB *ss, EF_ID ev_flag)
+void ss_read_buffer_selective(PROG *sp, SSCB *ss, evflag ev_flag)
 {
-	CHAN *ch = sp->syncedChans[ev_flag];
-	while (ch)
+	int word;
+	for (word=0; word < NWORDS(sp->numChans); word++)
 	{
-		/* Call static version so it gets inlined */
-		ss_read_buffer_static(ss, ch, TRUE);
-		ch = ch->nextSynced;
+		if (ev_flag->synced[word])
+		{
+			int i;
+			for (i=0; i<NBITS; i++)
+			{
+				if (bitTest(ev_flag->synced + word, i))
+				{
+					ss_read_buffer_static(ss,
+						sp->chan + NBITS * word + i, TRUE);
+				}
+			}
+		}
 	}
 }
 
 /*
  * ss_write_buffer() - Copy given value and meta data
  * to shared buffer. In safe mode, if dirtify is TRUE then
- * set dirty flag for each state set.
+ * set dirty flag for each state set that has a monitor on the channel.
  */
 void ss_write_buffer(CHAN *ch, void *val, PVMETA *meta, boolean dirtify)
 {
@@ -237,9 +247,70 @@ void ss_write_buffer(CHAN *ch, void *val, PVMETA *meta, boolean dirtify)
 
 	if (optTest(sp, OPT_SAFE) && dirtify)
 		for (nss = 0; nss < sp->numSS; nss++)
-			sp->ss[nss].dirty[nch] = TRUE;
+			if (sp->ss[nss].monitored[nch])
+				sp->ss[nss].dirty[nch] = TRUE;
 
 	epicsMutexUnlock(ch->varLock);
+}
+
+void dump_mask(pr_fun *pr, seqMask *mask, unsigned num_words)
+{
+	int n;
+	for (n = num_words-1; n >= 0; n--)
+	{
+		pr("%s"WORD_BIN_FMT, n?"'":"", WORD_BIN(mask[n]));
+	}
+}
+
+static void ss_transition(SSCB *ss, double now, SEQ_TRANS_FUNC *transFunc, int *nextState)
+{
+	boolean	ev_trig;
+	PROG *sp = ss->prog;
+
+	ss->wakeupTime = epicsINF;
+
+	/* Setting this semaphore here guarantees that conditions
+	 * are always evaluated at least once.
+	 */
+	epicsEventSignal(ss->syncSem);
+
+	/* Loop until an event is triggered */
+	do {
+		DEBUG("before epicsEventWaitWithTimeout(ss=%ld,timeout=%f)\n",
+			ss - sp->ss, ss->wakeupTime - now);
+		epicsEventWaitWithTimeout(ss->syncSem, ss->wakeupTime - now);
+		DEBUG("after epicsEventWaitWithTimeout(ss=%ld,timeout=%f)\n",
+			ss - sp->ss, ss->wakeupTime - now);
+
+		/* Check whether we have been asked to exit */
+		if (sp->die) return;
+
+		/* Check whether we have been asked to hold (suspend) */
+		if (sp->hold)
+		{
+			epicsEventSignal(ss->holding);
+			epicsEventWait(ss->holdSem);
+		}
+
+		/* Copy dirty variable values from CA buffer
+		 * to user (safe mode only).
+		 */
+		if (optTest(sp, OPT_SAFE))
+			ss_read_all_buffer(sp, ss);
+
+		ss->wakeupTime = epicsINF;
+
+		DEBUG("ss=%ld: ", ss - sp->ss);
+		dump_mask(DEBUG, ss->mask, sp->numEvWords);
+		DEBUG("\n");
+
+		/* Check state change conditions and do transition actions */
+		ss->eval_when = TRUE;
+		ev_trig = transFunc(ss, nextState);
+
+		if (!ev_trig)
+			pvTimeGetCurrentDouble(&now);
+	} while (!ev_trig);
 }
 
 /*
@@ -280,16 +351,10 @@ static void ss_entry(void *arg)
 	 */
 	while (TRUE)
 	{
-		boolean	ev_trig;
-		int	transNum = 0;	/* highest prio trans. # triggered */
 		STATE	*st = ss->states + ss->currentState;
 		double	now;
 
-		/* Set state to current state */
 		assert(ss->currentState >= 0);
-
-		/* Set state set event mask to this state's event mask */
-		ss->mask = st->eventMask;
 
 		/* If we've changed state, do any entry actions. Also do these
 		 * even if it's the same state if option to do so is enabled.
@@ -300,13 +365,10 @@ static void ss_entry(void *arg)
 			st->entryFunc(ss);
 		}
 
+		memset(ss->mask, 0, sizeof(seqMask) * sp->numEvWords);
+
 		/* Flush any outstanding DB requests */
 		pvSysFlush(sp->pvSys);
-
-		/* Setting this semaphore here guarantees that a when() is
-		 * always executed at least once when a state is first entered.
-		 */
-		epicsEventSignal(ss->syncSem);
 
 		pvTimeGetCurrentDouble(&now);
 
@@ -318,50 +380,11 @@ static void ss_entry(void *arg)
 		{
 			ss->timeEntered = now;
 		}
-		ss->wakeupTime = epicsINF;
 
-		/* Loop until an event is triggered, i.e. when() returns TRUE
-		 */
-		do {
-			/* Wake up on PV event, event flag, or expired delay */
-			DEBUG("before epicsEventWaitWithTimeout(ss=%d,timeout=%f)\n",
-				ss - sp->ss, ss->wakeupTime - now);
-			epicsEventWaitWithTimeout(ss->syncSem, ss->wakeupTime - now);
-			DEBUG("after epicsEventWaitWithTimeout()\n");
-
-			/* Check whether we have been asked to exit */
-			if (sp->die) goto exit;
-
-			/* Copy dirty variable values from CA buffer
-			 * to user (safe mode only).
-			 */
-			if (optTest(sp, OPT_SAFE))
-				ss_read_all_buffer(sp, ss);
-
-			ss->wakeupTime = epicsINF;
-
-			/* Check state change conditions */
-			ev_trig = st->eventFunc(ss,
-				&transNum, &ss->nextState);
-
-			/* Clear all event flags (old ef mode only) */
-			if (ev_trig && !optTest(sp, OPT_NEWEF))
-			{
-				unsigned i;
-				for (i = 0; i < NWORDS(sp->numEvFlags); i++)
-				{
-					sp->evFlags[i] &= ~ss->mask[i];
-				}
-			}
-			if (!ev_trig)
-				pvTimeGetCurrentDouble(&now);
-		} while (!ev_trig);
-
-		/* Execute the state change action */
-		st->actionFunc(ss, transNum, &ss->nextState);
+		ss_transition(ss, now, st->transFunc, &ss->nextState);
 
 		/* Check whether we have been asked to exit */
-		if (sp->die) goto exit;
+		if (sp->die) break;
 
 		/* If changing state, do exit actions */
 		if (st->exitFunc && (ss->currentState != ss->nextState
@@ -376,7 +399,6 @@ static void ss_entry(void *arg)
 	}
 
 	/* Thread exit has been requested */
-exit:
 	taskwdRemove(ss->threadId);
 	/* Declare ourselves dead */
 	if (ss != sp->ss)
@@ -410,16 +432,101 @@ void ss_wakeup(PROG *sp, unsigned eventNum)
 	{
 		SSCB *ss = sp->ss + nss;
 
-		epicsMutexMustLock(sp->lock);
 		/* If event bit in mask is set, wake that state set */
-		DEBUG("ss_wakeup: eventNum=%d, mask=%u, state set=%d\n", eventNum, 
-			ss->mask? *ss->mask : 0, (int)ssNum(ss));
-		if (eventNum == 0 || 
-			(ss->mask && bitTest(ss->mask, eventNum)))
+		DEBUG("ss_wakeup: eventNum=%u, state set=%u, mask=", eventNum, nss);
+		dump_mask(DEBUG, ss->mask, sp->numEvWords);
+		DEBUG("\n");
+		if (eventNum == 0 || bitTest(ss->mask, eventNum))
 		{
-			DEBUG("ss_wakeup: waking up state set=%d\n", (int)ssNum(ss));
+			DEBUG("ss_wakeup: waking up state set=%u\n", nss);
 			epicsEventSignal(ss->syncSem); /* wake up ss thread */
 		}
-		epicsMutexUnlock(sp->lock);
 	}
+}
+
+/* 
+ * Immediately terminate all state sets and jump to global exit block.
+ */
+epicsShareFunc void seq_exit(SS_ID ss)
+{
+	PROG *sp = ss->prog;
+	/* Ask all state set threads to exit */
+	sp->die = TRUE;
+	/* Take care that we die even if waiting for initial connect */
+	epicsEventSignal(sp->ready);
+	/* Wakeup all state sets unconditionally */
+	ss_wakeup(sp, 0);
+}
+
+/*
+ * Prepare for call to seq_wait
+ */
+epicsShareFunc seqWait const seq_wait_init(SS_ID ss, seqMask *event_mask)
+{
+	seqWait w;
+	double now;
+
+	/* save state set run time variables... */
+	w.timeEntered = ss->timeEntered;
+	w.eventMask = ss->mask;
+
+	/* .. and replace them with new values */
+	pvTimeGetCurrentDouble(&now);
+	ss->timeEntered = now;
+	ss->mask = event_mask;
+
+	ss->wakeupTime = epicsINF;
+
+	/* Evaluate conditions at least once */
+	epicsEventSignal(ss->syncSem);
+
+	return w;
+}
+
+/*
+ * Wait for an event (for wait statement).
+ * Returns whether we have been asked to exit.
+ */
+epicsShareFunc seqBool seq_wait(SS_ID ss)
+{
+	PROG *sp = ss->prog;
+	double now;
+
+	pvTimeGetCurrentDouble(&now);
+	epicsEventWaitWithTimeout(ss->syncSem, ss->wakeupTime - now);
+
+	/* Check whether we have been asked to exit */
+	if (ss->prog->die) return TRUE;
+
+	/* Check whether we have been asked to hold (suspend) */
+	if (sp->hold)
+	{
+		epicsEventSignal(ss->holding);
+		epicsEventWait(ss->holdSem);
+	}
+
+	/* Copy dirty variable values from CA buffer
+	 * to user (safe mode only).
+	 */
+	if (optTest(sp, OPT_SAFE))
+		ss_read_all_buffer(sp, ss);
+
+	ss->wakeupTime = epicsINF;
+	ss->eval_when = TRUE;
+	return FALSE;
+}
+
+/*
+ * Finish wait block
+ */
+epicsShareFunc void seq_wait_finish(SS_ID ss, seqWait const w)
+{
+	/* restore state set run time variables */
+	ss->timeEntered = w.timeEntered;
+	ss->mask = w.eventMask;
+}
+
+epicsShareFunc void seq_done_eval_cond(SS_ID ss)
+{
+	ss->eval_when = FALSE;
 }

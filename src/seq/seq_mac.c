@@ -9,9 +9,11 @@ in the file LICENSE that is included with this distribution.
 \*************************************************************************/
 /*************************************************************************\
                     Macro routines for Sequencer
-
-TODO: Get rid of this and use the macLib from EPICS base.
 \*************************************************************************/
+/* TODO: Would like to get rid of this and use the macLib from EPICS base.
+   But its current API is just too horrible (no way to recover from buffer
+   overflows, for instance). */
+
 #include "seq.h"
 #include "seq_debug.h"
 

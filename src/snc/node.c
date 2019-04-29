@@ -7,9 +7,6 @@ Copyright (c) 2010-2015 Helmholtz-Zentrum Berlin f. Materialien
 This file is distributed subject to a Software License Agreement found
 in the file LICENSE that is included with this distribution.
 \*************************************************************************/
-/*************************************************************************\
-                Parser support routines
-\*************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +19,10 @@ in the file LICENSE that is included with this distribution.
 #include "types.h"
 #include "node.h"
 #include "main.h"
+#include "var_types.h"
+#include "snl.h"
+
+static const int impossible = 0;
 
 static const StateOptions default_state_options = DEFAULT_STATE_OPTIONS;
 
@@ -46,6 +47,9 @@ Node *node(
 	/* allocate extra data */
 	switch (tag)
 	{
+	case D_PROG:
+		ep->extra.e_prog = new(Program);
+		break;
 	case D_SS:
 		ep->extra.e_ss = new(StateSet);
 		break;
@@ -59,13 +63,17 @@ Node *node(
 	default:
 		break;
 	}
+	if (is_scope(ep))
+	{
+		var_list_from_scope(ep) = new(VarList);
+	}
 
 #ifdef	DEBUG
 	report_at_node(ep, "node: ep=%p, tag=%s, value=\"%s\", file=%s, line=%d",
 		ep, node_name(ep), tok.str, tok.file, tok.line);
 #endif	/*DEBUG*/
 	va_start(argp, tok);
-	for (i = 0; i < num_children; i++)
+	for (i = 0; i < node_info[ep->tag].num_children; i++)
 	{
 		ep->children[i] = va_arg(argp, Node*);
 #ifdef	DEBUG
@@ -118,4 +126,183 @@ uint strtoui(
 		return FALSE;
 	*pnumber = result;
 	return TRUE;
+}
+
+VarList **pvar_list_from_scope(Node *scope)
+{
+	assert(scope);				/* precondition */
+	assert(is_scope(scope));		/* precondition */
+
+	switch(scope->tag)
+	{
+	case D_PROG:
+		return &scope->extra.e_prog->var_list;
+	case D_SS:
+		assert(scope->extra.e_ss);	/* invariant */
+		return &scope->extra.e_ss->var_list;
+	case D_STATE:
+		assert(scope->extra.e_state);	/* invariant */
+		return &scope->extra.e_state->var_list;
+	case S_CMPND:
+		return &scope->extra.e_cmpnd;
+	case D_FUNCDEF:
+		return &scope->extra.e_funcdef;
+	default:
+		assert(impossible); return NULL;
+	}
+}
+
+Node *defn_list_from_scope(Node *scope)
+{
+	assert(scope);				/* precondition */
+	assert(is_scope(scope));		/* precondition */
+
+	switch(scope->tag)
+	{
+	case D_PROG:
+		return scope->prog_defns;
+	case D_SS:
+		return scope->ss_defns;
+	case D_STATE:
+		return scope->state_defns;
+	case S_CMPND:
+		return scope->cmpnd_defns;
+	case D_FUNCDEF:
+		assert(scope->funcdef_decl);			/* invariant */
+		assert(scope->funcdef_decl->extra.e_decl);	/* invariant */
+		return scope->funcdef_decl->extra.e_decl->type->val.function.param_decls;
+	default:
+		assert(impossible); return NULL;
+	}
+}
+
+void traverse_syntax_tree(
+	Node		*ep,		/* start node */
+	NodeMask	call_mask,	/* when to call iteratee */
+	NodeMask	stop_mask,	/* when to stop descending */
+	Node		*scope,		/* current scope, 0 at top-level */
+	node_iter	*iteratee,	/* function to call */
+	void		*parg		/* argument to pass to function */
+)
+{
+	Node	*cep;
+	uint	i;
+	int	descend = TRUE;
+
+	if (!ep)
+		return;
+
+#ifdef DEBUG
+	report("traverse_syntax_tree(tag=%s,token.str=%s)\n",
+		node_name(ep), ep->token.str);
+#endif
+
+	/* Call the function? */
+	if (call_mask & bit(ep->tag))
+	{
+		descend = iteratee(ep, scope, parg);
+	}
+
+	if (!descend)
+		return;
+
+	/* Are we just entering a new scope? */
+	if (is_scope(ep))
+	{
+#ifdef DEBUG
+	report("traverse_syntax_tree: new scope=(%s,%s)\n",
+		node_name(ep), ep->token.str);
+#endif
+		scope = ep;
+	}
+
+	/* Descend into children */
+	for (i = 0; i < node_info[ep->tag].num_children; i++)
+	{
+		foreach (cep, ep->children[i])
+		{
+			if (!(bit(cep->tag) & stop_mask))
+			{
+				traverse_syntax_tree(cep, call_mask, stop_mask,
+					scope, iteratee, parg);
+			}
+		}
+	}
+}
+
+static Node *mk_const_node(Node *other, uint n)
+{
+	static char buf[21];	/* long enough for a 64 bit unsigned in decimal */
+	Token k = other->token;
+
+	k.symbol = TOK_INTCON;
+	sprintf(buf, "%u", n);
+	k.str = strdup(buf);
+	return node(E_CONST, k);
+}
+
+Node *mk_subscr_node(Node *operand, uint n)
+{
+	Token k = operand->token;
+
+	k.symbol = TOK_LBRACKET;
+	k.str = "[";
+	return node(E_SUBSCR, k, operand, mk_const_node(operand, n));
+}
+
+static Node *mk_member_node(Node *other, char *name)
+{
+	Token k = other->token;
+
+	k.symbol = TOK_NAME;
+	k.str = name;
+	return node(E_MEMBER, k);
+}
+
+Node *mk_select_node(Node *operand, char *name)
+{
+	Token k = operand->token;
+
+	k.symbol = TOK_PERIOD;
+	k.str = ".";
+	return node(E_SELECT, k, operand, mk_member_node(operand, name));
+}
+
+Node *mk_var_node(Var *vp)
+{
+	Token k;
+	Node *r;
+
+	assert(vp->decl);
+	k = vp->decl->token;
+	k.symbol = TOK_NAME;
+	k.str = vp->name;
+	r = node(E_VAR, k);
+	r->extra.e_var = vp;
+	return r;
+}
+
+Node *mk_string_node(Node *other, char *s)
+{
+	Token k = other->token;
+	k.symbol = TOK_STRCON;
+	k.str = s;
+	return node(E_STRING, k);
+}
+
+void dump_node(Node *e, int level)
+{
+    int i, l;
+    for (l = 0; l < level; l++) report("  ");
+    if (e) {
+        Node *ce;
+        report("%s '%s'\n", node_name(e), e->token.str);
+        for (i = 0; i < node_info[e->tag].num_children; i++) {
+            foreach (ce, e->children[i]) {
+                dump_node(ce, level+1);
+            }
+        }
+    } else {
+        report("***NULL***\n");
+    }
 }

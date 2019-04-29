@@ -4,8 +4,8 @@ Copyright (c) 2010-2015 Helmholtz-Zentrum Berlin f. Materialien
 This file is distributed subject to a Software License Agreement found
 in the file LICENSE that is included with this distribution.
 \*************************************************************************/
-program efArrayTest
+program p
 
-evflag efa[3];  /* error: array of event flags */
+int x = 09; /* syntax error */
 
 #include "simple.st"

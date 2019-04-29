@@ -5,30 +5,37 @@ use strict;
 use Test::More;
 
 my $tests = {
+  assign_to_void_pv       => { warnings => 0, errors => 1  },
   cast                    => { warnings => 0, errors => 0  },
   change                  => { warnings => 0, errors => 2  },
-  delay_in_action         => { warnings => 0, errors => 1  },
-  efArray                 => { warnings => 0, errors => 1  },
-  efGlobal                => { warnings => 0, errors => 3  },
-  efNoInit                => { warnings => 0, errors => 1  },
-  efPointer               => { warnings => 0, errors => 1  },
+  delay_in_action         => { warnings => 0, errors => 0  },
+  efGlobal                => { warnings => 0, errors => 1  },
   exOpt_UnrecOpt          => { warnings => 1, errors => 0  },
   foreignGlobal           => { warnings => 1, errors => 3  },
   foreignNoInit           => { warnings => 0, errors => 1  },
   foreignTypes            => { warnings => 1, errors => 0  },
   funcdefShadowGlobal     => { warnings => 0, errors => 1  },
+  funcdefShadowBuiltin    => { warnings => 0, errors => 1  },
+  integer_literal         => { warnings => 0, errors => 1  },
   misplacedExit           => { warnings => 0, errors => 1  },
   namingConflict          => { warnings => 0, errors => 0  },
   nesting_depth           => { warnings => 0, errors => 0  },
+  pass_pv_type            => { warnings => 0, errors => 1  },
   pvArray                 => { warnings => 0, errors => 21 },
   pvNotAssigned           => { warnings => 0, errors => 20 },
+  pv_and_assign           => { warnings => 2, errors => 0  },
+  pv_cast                 => { warnings => 0, errors => 2  },
   reservedId              => { warnings => 0, errors => 2  },
+  old_channel_commands    => { warnings => 0, errors => 15 },
   state_not_reachable     => { warnings => 3, errors => 0  },
   sync_not_assigned       => { warnings => 0, errors => 1  },
   syncq_no_size           => { warnings => 1, errors => 0  },
   syncq_not_assigned      => { warnings => 0, errors => 1  },
   syncq_size_out_of_range => { warnings => 0, errors => 1  },
-  type_not_allowed        => { warnings => 2, errors => 9  },
+  type_not_allowed        => { warnings => 3, errors => 10 },
+  varinit                 => { warnings => 0, errors => 12 },
+  varShadowBuiltin        => { warnings => 0, errors => 1  },
+  void_param              => { warnings => 0, errors => 1  },
 };
 
 my @progs = sort(keys(%$tests));
@@ -51,7 +58,7 @@ foreach my $prog (@progs) {
   `make -s -B $prog.i`;
   my $failed = 0;
   # execute the snc and capture the output
-  my $output = `..${dirsep}..${dirsep}..${dirsep}bin${dirsep}${host_arch}${dirsep}snc $prog.i -o $prog.c 2>&1`;
+  my $output = `..${dirsep}..${dirsep}..${dirsep}bin${dirsep}${host_arch}${dirsep}snc +m $prog.i -o $prog.c 2>&1`;
   # test whether it terminated normally
   my $exitsig = $? & 127;
   is ($exitsig, 0, "$prog: snc terminates normally") or $failed = 1;

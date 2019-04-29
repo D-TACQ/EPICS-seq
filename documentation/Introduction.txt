@@ -22,8 +22,8 @@ variables* (PVs), such as provided by an EPICS runtime database. This can be
 done in such a way that the value of the program variable gets continuously
 updated whenever the value of the acssociated PV changes. Such variables can
 then be used inside the state transition conditions, and the runtime system
-takes care that the conditions are evaluated when and only when changes to
-the associated PV occur.
+takes care that the conditions are evaluated when
+the associated PV changes.
 
 In the code that gets executed when a state transition takes place, you can
 explicitly read the value of the PV into the associated program variable
