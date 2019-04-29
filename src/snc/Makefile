@@ -42,7 +42,7 @@ vpath %.txt $(COMMON_DIR)
 
 %.c %.h: %.lem %.lt $(LEMON)
 	$(ECHO) generating SNL parser
-	$(MKDIR) -p parser-build
+	-$(MKDIR) parser-build
 	$(LEMON) o=parser-build $<
 	$(MV) parser-build/* .
 
