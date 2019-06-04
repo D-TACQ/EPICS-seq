@@ -1,5 +1,5 @@
 /*************************************************************************\
-Copyright (c) 2010-2012 Helmholtz-Zentrum Berlin f. Materialien
+Copyright (c) 2010-2015 Helmholtz-Zentrum Berlin f. Materialien
                         und Energie GmbH, Germany (HZB)
 This file is distributed subject to a Software License Agreement found
 in the file LICENSE that is included with this distribution.
@@ -25,12 +25,6 @@ ss main {
     int x = 0;
     int n = 1;
     state zero {
-#if 0
-        /* uncomment to test rejection of state change in entry block */
-        entry {
-            state zero;
-        }
-#endif
         when (n > MAX_TEST) {
         } exit
         when (delay(0.01)) {
@@ -44,12 +38,6 @@ ss main {
                 state neg;
             }
         } state zero
-#if 0
-        /* uncomment to test rejection of state change in exit block */
-        exit {
-            state zero;
-        }
-#endif
     }
     state pos {
         when (n > MAX_TEST) {

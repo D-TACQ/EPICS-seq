@@ -7,25 +7,20 @@ include $(TOP)/configure/CONFIG
 SNC = $(INSTALL_HOST_BIN)/snc$(HOSTEXE)
 
 DBD += demo.dbd
+# do not install dbd file, just build it:
+INSTALL_DBDS=
 
-#  Products
-PROD_IOC = demo
+TESTPROD_IOC = demo
+demo_SRCS += demo.st
 
-# <name>_registerRecordDeviceDriver.cpp will be created from <name>.dbd
+#generic IOC stuff
 demo_SRCS += demo_registerRecordDeviceDriver.cpp
 demo_SRCS_DEFAULT += demoMain.c
 demo_SRCS_vxWorks += -nil-
-
-#The following adds support from base/src/vxWorks
 demo_OBJS_vxWorks += $(EPICS_BASE_BIN)/vxComLibrary
 
-LIBRARY_IOC += demoSupport
-demoSupport_LIBS += seq pv
-demoSupport_LIBS += $(EPICS_BASE_IOC_LIBS)
-demoSupport_SRCS += demo.st
-
-demo_LIBS += demoSupport seqDev seq pv
 demo_LIBS += $(EPICS_BASE_IOC_LIBS)
+demo_LIBS += seq pv
 
 include $(TOP)/configure/RULES
 #----------------------------------------

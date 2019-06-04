@@ -112,14 +112,16 @@
 # mac os finder
 (^|/)\.DS_Store$
 
-# EPICS build system generated directories:
+### EPICS build system generated directories
 /O\.
 ^bin($|/)
 ^db($|/)
 ^dbd($|/)
-^dl($|/)
 ^include($|/)
 ^lib($|/)
 ^html($|/)
-^documentation/bnf.inc$
+
+### Sequencer
 ^seq\.
+# darcs patches received or created locally
+^.*\.dpatch$

@@ -7,32 +7,23 @@ include $(TOP)/configure/CONFIG
 SNC = $(INSTALL_HOST_BIN)/snc$(HOSTEXE)
 
 #  Generate snc main programs (not needed under VxWorks)
-SNCFLAGS_DEFAULT += +m -i
+SNCFLAGS_DEFAULT += +m
 SNCFLAGS_vxWorks += -nil-
 
 #  Set to path of valgrind executable if tests should run under valgrind
 USE_VALGRIND =
 
-#  Sequence programs and/or object files to create
-TESTPROD_HOST += decl
-TESTPROD_HOST += delay
-TESTPROD_HOST += entry
-TESTPROD_HOST += entryOpte
-TESTPROD_HOST += entryVar
-TESTPROD_HOST += exitOptx
-TESTPROD_HOST += optt
-TESTPROD_HOST += stop
-TESTPROD_HOST += subscript
-TESTPROD_HOST += syncq
-TESTPROD_HOST += version
-
 REGRESSION_TESTS_WITH_DB += bittypes
 REGRESSION_TESTS_WITH_DB += evflag
 REGRESSION_TESTS_WITH_DB += monitorEvflag
+REGRESSION_TESTS_WITH_DB += pvAssignSubst
+REGRESSION_TESTS_WITH_DB += pvAssignStress
 REGRESSION_TESTS_WITH_DB += pvGet
 REGRESSION_TESTS_WITH_DB += pvGetAsync
+REGRESSION_TESTS_WITH_DB += pvGetCancel
 REGRESSION_TESTS_WITH_DB += pvPutAsync
 REGRESSION_TESTS_WITH_DB += pvPutAndMonitor
+REGRESSION_TESTS_WITH_DB += pvSyncDb
 REGRESSION_TESTS_WITH_DB += reassign
 
 REGRESSION_TESTS_WITH_DB += norace
@@ -45,13 +36,23 @@ REGRESSION_TESTS_WITHOUT_DB += array
 REGRESSION_TESTS_WITHOUT_DB += assign
 REGRESSION_TESTS_WITHOUT_DB += change
 REGRESSION_TESTS_WITHOUT_DB += commaOperator
+REGRESSION_TESTS_WITHOUT_DB += entryOpte
+REGRESSION_TESTS_WITHOUT_DB += evflagExt
+REGRESSION_TESTS_WITHOUT_DB += exitOptx
+REGRESSION_TESTS_WITHOUT_DB += foreignTypes
+REGRESSION_TESTS_WITHOUT_DB += functionInStruct
+REGRESSION_TESTS_WITHOUT_DB += indirectCall
 REGRESSION_TESTS_WITHOUT_DB += local
 REGRESSION_TESTS_WITHOUT_DB += opttVar
-REGRESSION_TESTS_WITHOUT_DB += pvSync
+REGRESSION_TESTS_WITHOUT_DB += pvSyncNoDb
 REGRESSION_TESTS_WITHOUT_DB += safeModeNotAssigned
 REGRESSION_TESTS_WITHOUT_DB += safeMonitor
+REGRESSION_TESTS_WITHOUT_DB += sizeof
+REGRESSION_TESTS_WITHOUT_DB += stop
+REGRESSION_TESTS_WITHOUT_DB += structdef
 REGRESSION_TESTS_WITHOUT_DB += userfunc
 REGRESSION_TESTS_WITHOUT_DB += userfuncEf
+REGRESSION_TESTS_WITHOUT_DB += void
 
 REGRESSION_TESTS_REMOTE_ONLY += pvGetSync
 REGRESSION_TESTS_REMOTE_ONLY += pvGetComplete
@@ -133,6 +134,7 @@ $(REGRESSION_TESTS:%=%.t): %.t: %$(EXE) ../makeTestfile.pl
 	$(PERL) ../makeTestfile.pl $@ $* $< noioc $(USE_VALGRIND)
 
 norace.i race.i: ../raceCommon.st
+pvSyncDb.i pvSyncNoDb.i: ../pvSync.st
 
 $(COMMON_DIR)/vxTestHarnessRegistrars.dbd: ../makeTestDbd.pl
 	$(PERL) ../makeTestDbd.pl $(REGRESSION_TESTS_vxWorks) > $@

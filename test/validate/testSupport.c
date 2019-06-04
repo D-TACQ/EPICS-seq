@@ -1,5 +1,5 @@
 /*************************************************************************\
-Copyright (c) 2010-2012 Helmholtz-Zentrum Berlin f. Materialien
+Copyright (c) 2010-2015 Helmholtz-Zentrum Berlin f. Materialien
                         und Energie GmbH, Germany (HZB)
 This file is distributed subject to a Software License Agreement found
 in the file LICENSE that is included with this distribution.
@@ -23,14 +23,14 @@ static int doit(void)
     return 0;
 }
 
-void run_seq_test(seqProgram *seqProg, int adapt_priority)
+void run_seq_test(seqProgram *seqProg, const char *name, int adapt_priority)
 {
     seq_test_adapt_priority = adapt_priority;
     if (!this_test_done) {
         this_test_done = epicsEventMustCreate(epicsEventEmpty);
     }
     prog = seqProg;
-    runTestFunc(seqProg->progName, doit);
+    runTestFunc(name, doit);
     epicsEventWait(this_test_done);
     epicsThreadSleep(1.0);
 }
