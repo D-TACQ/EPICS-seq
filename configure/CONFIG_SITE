@@ -2,6 +2,7 @@
 
 # To restrict the architectures to cross-compile for, set this:
 #CROSS_COMPILER_TARGET_ARCHS = vxWorks-68040
+CROSS_COMPILER_TARGET_ARCHS = linux-arm
 
 # To install somewhere other than $(TOP) set this:
 #INSTALL_LOCATION = <install path>
