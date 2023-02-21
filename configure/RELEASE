@@ -4,7 +4,7 @@
 # optional extra local definitions here
 -include $(TOP)/configure/RELEASE.private
 
-EPICS_BASE=/usr/local/epics
+EPICS_BASE=/usr/local/epics/base
 
 # legacy support for synapps
 -include $(TOP)/../configure/EPICS_BASE.$(EPICS_HOST_ARCH)
