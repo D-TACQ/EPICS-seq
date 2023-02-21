@@ -1,10 +1,11 @@
 O.*/
-/db
-/bin
-/dbd
-/include
-/lib
-/templates
+/db/
+/bin/
+/dbd/
+/include/
+/lib/
+/cfg/
+/templates/
 envPaths
 cdCommands
 dllPath.bat
@@ -13,4 +14,4 @@ runIOC.sh
 relPaths.sh
 documentation/bnf.inc
 .project
-/html
+/html/
